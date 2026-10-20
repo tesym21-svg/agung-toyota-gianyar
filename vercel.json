@@ -1,15 +1,22 @@
 {
   "version": 2,
+  "name": "agung-toyota-gianyar",
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "public/**",
+          "data/**"
+        ]
+      }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/server.js"
+      "dest": "server.js"
     }
   ]
 }
