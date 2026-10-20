@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agung Toyota Gianyar — Sistem Pengingat Otomatis WA &amp; Email | Design by MDP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- TOP BRAND HEADER -->
+  <header class="top-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-emblem" aria-hidden="true">
+          <svg viewBox="0 0 48 34" fill="none" xmlns="http://www.w3.org/2000/svg" class="toyota-mark">
+            <ellipse cx="24" cy="17" rx="22" ry="14" stroke="currentColor" stroke-width="3"/>
+            <ellipse cx="24" cy="17" rx="7.5" ry="13.5" stroke="currentColor" stroke-width="2.6"/>
+            <ellipse cx="24" cy="10.5" rx="14.5" ry="5.5" stroke="currentColor" stroke-width="2.6"/>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <div class="brand-badge-row">
+            <span class="dealer-pill">AUTHORIZED DEALER CRM</span>
+            <span class="mdp-pill">✨ Design by MDP</span>
+          </div>
+          <h1 class="brand-main-title">AGUNG TOYOTA GIANYAR</h1>
+          <p class="brand-subtitle">Sistem Pengingat Otomatis Ulang Tahun, Samsat (H-3) &amp; Asuransi Mobil (H-3) — Pelanggan, Sales &amp; SA</p>
+        </div>
+      </div>
+
+      <!-- LIVE WITA CLOCK & SCHEDULE STATUS -->
+      <div class="header-status-cluster">
+        <div class="wita-clock-card">
+          <div class="clock-label">WAKTU BALI (WITA / UTC+8)</div>
+          <div class="clock-time" id="liveWitaClock">--:--:-- WITA</div>
+          <div class="clock-date" id="liveWitaDate">Memuat tanggal...</div>
+        </div>
+        <div class="schedule-pills">
+          <div class="sched-badge" id="officeStatusBadge">
+            <span class="dot"></span>
+            <div>
+              <div class="sched-title">Jam Aktif WA Kantor</div>
+              <div class="sched-val" id="officeHoursLabel">08:00 – 16:00 WITA</div>
+            </div>
+          </div>
+          <div class="sched-badge highlight" id="waWindowBadge">
+            <span class="dot"></span>
+            <div>
+              <div class="sched-title">Jadwal Kirim WA Otomatis</div>
+              <div class="sched-val" id="waWindowLabel">10:00 – 14:00 WITA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <!-- LIVE AUTO-PILOT & WA QR BANNER ON MAIN PAGE -->
+    <section class="autopilot-hero-card" aria-label="Panel Mesin Auto-Pilot WhatsApp dan Email">
+      <div class="autopilot-left">
+        <div class="autopilot-title-row">
+          <span class="autopilot-live-badge" id="mainAutoPilotBadge">🤖 MESIN AUTO-PILOT AKTIF</span>
+          <span class="wa-status-chip" id="mainWaStatusChip">Memuat Status WA...</span>
+          <span class="wa-status-chip" id="mainGmailStatusChip" style="background: #2563eb;">Memuat Status Gmail...</span>
+        </div>
+        <h2 style="margin: 6px 0 4px; font-size: 19px;">Sistem Pengiriman 100% Otomatis (WhatsApp &amp; Gmail)</h2>
+        <p id="mainAutoPilotStatusText" style="margin: 0 0 12px; font-size: 13.5px; color: var(--slate-600);">
+          Memeriksa status koneksi WhatsApp, Gmail, dan jadwal pengiriman otomatis WITA...
+        </p>
+
+        <!-- Quick WA + Email Test Form -->
+        <form id="formQuickTestWa" class="quick-test-wa-form" action="/api/wa/test-direct" method="POST">
+          <label for="inputQuickTestPhone"><strong>📱✉️ Tes Kirim WA &amp; Gmail:</strong></label>
+          <input type="tel" id="inputQuickTestPhone" name="phone" class="input-control" placeholder="Ketik No. WA (cth: 082237563999)">
+          <input type="email" id="inputQuickTestEmail" name="email" class="input-control" placeholder="Ketik Email Gmail (cth: tesym21@gmail.com)">
+          <button type="submit" class="btn btn-wa">⚡ Tes Kirim WA &amp; Gmail</button>
+          <button type="button" class="btn btn-outline" id="btnExtendWindowNow" title="Klik ini untuk membuka jam kirim otomatis 08:00–18:00 WITA hari ini">
+            🕒 Buka Jam Auto-Pilot (08:00–18:00 WITA)
+          </button>
+        </form>
+      </div>
+
+      <!-- Right Side: Instant QR Code Box on Main Screen -->
+      <div class="autopilot-qr-box" id="mainQrContainer">
+        <div id="mainQrNotConnected">
+          <div style="font-size: 12px; font-weight: 800; color: var(--toyota-red-dark); margin-bottom: 6px;">
+            📲 SCAN QR WA KANTOR (CUKUP 1X SAJA)
+          </div>
+          <img id="mainWaQrImage" src="" alt="Scan QR Code WhatsApp Agung Toyota Gianyar" class="main-qr-img hidden">
+          <div id="mainWaQrLoading" style="font-size: 12px; color: var(--slate-600); padding: 18px 8px;">
+            ⏳ Sedang membuat QR Code WhatsApp...
+          </div>
+          <div style="font-size: 11px; color: var(--slate-600); margin-top: 4px;">
+            Buka WA di HP &rarr; <strong>Perangkat Tertaut</strong> &rarr; Scan QR ini. Begitu terhubung, semua pengingat langsung terkirim otomatis!
+          </div>
+        </div>
+        <div id="mainQrConnectedBox" class="hidden" style="text-align: center; padding: 14px;">
+          <div style="font-size: 32px;">✅</div>
+          <strong style="color: var(--wa-green); font-size: 14px; display: block;">WhatsApp &amp; Gmail Aktif!</strong>
+          <span id="mainWaConnectedNumber" style="font-size: 12px; color: var(--slate-600); display: block; margin-top: 2px;"></span>
+          <span id="mainGmailConnectedAccount" style="font-size: 11.5px; color: #1d4ed8; font-weight: 700; display: block; margin-top: 4px;"></span>
+          <div style="margin-top: 8px; font-size: 11.5px; background: var(--wa-green-soft); color: #14532d; padding: 6px 10px; border-radius: 8px; font-weight: 600;">
+            Auto-Pilot siap mengirim WA &amp; Email otomatis!
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KPI SUMMARY CARDS -->
+    <section class="kpi-grid" aria-label="Ringkasan Pengingat Hari Ini">
+      <article class="kpi-card kpi-total">
+        <div class="kpi-icon">👥</div>
+        <div class="kpi-info">
+          <span class="kpi-label">Total Data Pelanggan (Excel)</span>
+          <strong class="kpi-number" id="statTotalCustomers">0</strong>
+          <span class="kpi-sub">Tersimpan otomatis di file .xlsx</span>
+        </div>
+      </article>
+
+      <article class="kpi-card kpi-birthday">
+        <div class="kpi-icon">🎂</div>
+        <div class="kpi-info">
+          <span class="kpi-label">Ulang Tahun Hari Ini (Hari H)</span>
+          <strong class="kpi-number" id="statBirthday">0</strong>
+          <span class="kpi-sub">Otomatis ke Pelanggan + Sales &amp; SA</span>
+        </div>
+      </article>
+
+      <article class="kpi-card kpi-samsat">
+        <div class="kpi-icon">🚗</div>
+        <div class="kpi-info">
+          <span class="kpi-label">Jatuh Tempo Samsat (H-3)</span>
+          <strong class="kpi-number" id="statSamsat">0</strong>
+          <span class="kpi-sub">Otomatis 3 hari sebelum STNK habis</span>
+        </div>
+      </article>
+
+      <article class="kpi-card kpi-asuransi">
+        <div class="kpi-icon">🛡️</div>
+        <div class="kpi-info">
+          <span class="kpi-label">Expired Asuransi Mobil (H-3)</span>
+          <strong class="kpi-number" id="statAsuransi">0</strong>
+          <span class="kpi-sub">Otomatis 3 hari sebelum polis berakhir</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- MAIN NAVIGATION TABS -->
+    <nav class="nav-tabs" aria-label="Menu Utama Sistem">
+      <button type="button" class="tab-btn active" data-tab="tab-today">
+        🔔 Antrean Otomatis Hari Ini <span class="tab-counter" id="badgePendingToday">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="tab-excel">
+        📊 Data Pelanggan &amp; Format Excel
+      </button>
+      <button type="button" class="tab-btn" data-tab="tab-connection">
+        📱 Pengaturan WA &amp; Gmail
+      </button>
+      <button type="button" class="tab-btn" data-tab="tab-templates">
+        ✍️ Template Pesan &amp; Jam WITA
+      </button>
+      <button type="button" class="tab-btn" data-tab="tab-logs">
+        📜 Riwayat Terkirim
+      </button>
+    </nav>
+
+    <!-- TAB 1: PENGINGAT HARI INI -->
+    <section id="tab-today" class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Daftar Antrean Pengingat Otomatis Hari Ini</h2>
+          <p class="panel-desc">
+            Daftar di bawah ini <strong>dikirim secara otomatis oleh sistem</strong> pada jam pengiriman WA (<strong>10:00 – 14:00 WITA</strong>) begitu WhatsApp sudah terhubung. Tombol di bawah hanya cadangan jika Anda ingin memicu lebih awal.
+          </p>
+        </div>
+        <div class="panel-actions">
+          <button type="button" class="btn btn-outline" id="btnQuickUpload">📂 Upload Excel Baru</button>
+          <button type="button" class="btn btn-secondary" id="btnResetTodayFlags" title="Reset tanda sudah terkirim hari ini untuk keperluan uji coba">
+            🔄 Reset Status Kirim Hari Ini
+          </button>
+          <button type="button" class="btn btn-primary" id="btnSendAllPending">
+            🚀 Paksa Kirim Semua Sekarang (Tanpa Tunggu Jam)
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Pills for 3 Types -->
+      <div class="type-filter-bar">
+        <button type="button" class="filter-chip active" data-type-filter="ALL">Semua Tipe (3 Pengingat)</button>
+        <button type="button" class="filter-chip chip-bday" data-type-filter="ULTAH">🎂 Ulang Tahun (Hari H)</button>
+        <button type="button" class="filter-chip chip-samsat" data-type-filter="SAMSAT">🚗 Samsat Kendaraan (H-3)</button>
+        <button type="button" class="filter-chip chip-asuransi" data-type-filter="ASURANSI">🛡️ Asuransi Mobil (H-3)</button>
+      </div>
+
+      <div id="todayRemindersContainer" class="reminder-cards-grid">
+        <!-- Populated dynamically via app.js -->
+      </div>
+    </section>
+
+    <!-- TAB 2: DATA PELANGGAN & EXCEL -->
+    <section id="tab-excel" class="tab-panel">
+      <div class="excel-Control-banner">
+        <div class="excel-banner-left">
+          <h2>Kelola Data Pelanggan via File Excel (.xlsx)</h2>
+          <p>Unduh template resmi di sebelah kanan, isi data di Microsoft Excel sesuai urutan kolom di bawah, lalu upload kembali.</p>
+        </div>
+        <div class="excel-banner-actions">
+          <a href="/api/excel/template" class="btn btn-outline">📥 Download Template Excel (.xlsx)</a>
+          <a href="/api/excel/download" class="btn btn-secondary">💾 Export Data Excel Saat Ini</a>
+          <button type="button" class="btn btn-outline" id="btnOpenExcelModal">📤 Upload File Excel (.xlsx)</button>
+          <button type="button" class="btn btn-primary" id="btnOpenAddCustomer">➕ Tambah Pelanggan</button>
+        </div>
+      </div>
+
+      <!-- Optional Google Sheets Sync Bar -->
+      <div class="gsheet-sync-box">
+        <form id="formGoogleSheetSync" class="gsheet-form" action="/api/google-sheets/sync" method="POST">
+          <label for="inputGoogleSheetUrl"><strong>🔗 Sinkronisasi Google Sheets (Opsional):</strong></label>
+          <input type="url" id="inputGoogleSheetUrl" name="url" placeholder="Tempel link Google Sheets (Akses: Siapa saja yang memiliki link dapat melihat)..." class="input-control">
+          <button type="submit" class="btn btn-secondary">🔄 Tarik Data dari Google Sheets</button>
+        </form>
+      </div>
+
+      <!-- Search & Filter Table -->
+      <div class="table-toolbar">
+        <div class="search-box">
+          <label for="searchCustomerInput" class="visually-hidden">Cari Pelanggan, Plat Nomor, Sales, atau SA</label>
+          <input type="search" id="searchCustomerInput" name="q" placeholder="🔍 Cari nama pelanggan, plat nomor (DK ...), tipe mobil, nama Sales, atau SA..." class="input-control">
+        </div>
+        <div class="toolbar-right">
+          <button type="button" class="btn btn-sm btn-outline" id="btnResetSampleData">✨ Muat Ulang Contoh Data Uji Coba</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Pelanggan &amp; Kontak</th>
+              <th>Unit Kendaraan</th>
+              <th>🎂 Tgl Ulang Tahun</th>
+              <th>🚗 Tgl Habis Samsat</th>
+              <th>🛡️ Expired Asuransi</th>
+              <th>👨‍💼 Sales PIC</th>
+              <th>🔧 Service Advisor (SA)</th>
+              <th>Status Pengingat</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="customerTableBody">
+            <!-- Populated by app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TAB 3: KONEKSI WHATSAPP (SCAN QR) & GMAIL -->
+    <section id="tab-connection" class="tab-panel">
+      <div class="two-col-grid">
+        <!-- WHATSAPP CONNECTION CARD -->
+        <div class="settings-card">
+          <div class="card-badge-header">
+            <span class="status-pill" id="waConnectionPill">Memeriksa Status...</span>
+            <h3>📱 Koneksi WhatsApp Otomatis (Gratis Scan QR)</h3>
+          </div>
+          <p class="card-help">
+            Gunakan fitur ini untuk menautkan WhatsApp Admin / Customer Care <strong>Agung Toyota Gianyar</strong>. Selama jam kerja (08:00–16:00 WITA), sistem otomatis mengirimkan WA pada rentang pukul <strong>10:00–14:00 WITA</strong>.
+          </p>
+
+          <div class="qr-stage" id="waQrStage">
+            <div class="qr-placeholder" id="waQrPlaceholder">
+              <div class="qr-icon">📲</div>
+              <p id="waStatusDescription">Klik tombol <strong>"Tampilkan QR Code WhatsApp"</strong> di bawah, lalu scan menggunakan menu <em>Perangkat Tertaut (Linked Devices)</em> di HP WhatsApp kantor.</p>
+              <img id="waQrImage" src="" alt="QR Code WhatsApp Agung Toyota Gianyar" class="qr-image hidden">
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" id="btnConnectWa">📷 Tampilkan / Hubungkan QR WhatsApp</button>
+            <button type="button" class="btn btn-danger" id="btnDisconnectWa">🔌 Putuskan Sesi WA</button>
+          </div>
+
+          <hr class="divider">
+
+          <form id="formWaGateway" action="/api/config" method="POST">
+            <fieldset class="form-fieldset">
+              <legend>Opsional: Gunakan WhatsApp Gateway API (Fonnte / Wablas)</legend>
+              <p class="field-hint">Jika suatu saat Anda ingin menggunakan token WA Gateway pihak ketiga selain Scan QR lokal:</p>
+              <div class="checkbox-row">
+                <input type="checkbox" id="chkWaGatewayEnabled" name="waGatewayEnabled">
+                <label for="chkWaGatewayEnabled">Aktifkan Pengiriman via WA Gateway API</label>
+              </div>
+              <div class="form-group">
+                <label for="inputWaGatewayUrl">URL Endpoint API</label>
+                <input type="url" id="inputWaGatewayUrl" name="waGatewayUrl" class="input-control" placeholder="https://api.fonnte.com/send">
+              </div>
+              <div class="form-group">
+                <label for="inputWaGatewayToken">Token API Gateway</label>
+                <input type="text" id="inputWaGatewayToken" name="waGatewayToken" class="input-control" placeholder="Masukkan token API jika menggunakan Fonnte">
+              </div>
+              <button type="submit" class="btn btn-secondary">💾 Simpan Pengaturan WA Gateway</button>
+            </fieldset>
+          </form>
+        </div>
+
+        <!-- GMAIL SMTP CONNECTION CARD -->
+        <div class="settings-card">
+          <div class="card-badge-header">
+            <span class="status-pill" id="smtpConnectionPill">Mode Simulasi</span>
+            <h3>✉️ Pengaturan Pengirim Email Otomatis (Gmail)</h3>
+          </div>
+          <p class="card-help">
+            Email akan dikirim dengan desain kartu HTML eksklusif berlogo <strong>Agung Toyota Gianyar — Design by MDP</strong> baik ke Pelanggan maupun ke Sales &amp; SA.
+          </p>
+
+          <form id="formSmtpConfig" action="/api/config" method="POST">
+            <fieldset class="form-fieldset">
+              <legend>Kredensial Akun Gmail Pengirim</legend>
+
+              <div class="checkbox-row">
+                <input type="checkbox" id="chkSmtpEnabled" name="smtpEnabled">
+                <label for="chkSmtpEnabled"><strong>Aktifkan Pengiriman Email Gmail Otomatis</strong></label>
+              </div>
+
+              <div class="form-group">
+                <label for="inputSmtpFromName">Nama Pengirim di Inbox Pelanggan</label>
+                <input type="text" id="inputSmtpFromName" name="fromName" class="input-control" placeholder="Agung Toyota Gianyar - Customer Care" required>
+              </div>
+
+              <div class="form-group">
+                <label for="inputSmtpUser">Alamat Email Gmail Pengirim</label>
+                <input type="email" id="inputSmtpUser" name="smtpUser" class="input-control" autocomplete="username" placeholder="customercare.gianyar@gmail.com">
+              </div>
+
+              <div class="form-group">
+                <label for="inputSmtpPass">Sandi Aplikasi Gmail (16 Digit Google App Password)</label>
+                <div class="password-input-wrap">
+                  <input type="password" id="inputSmtpPass" name="smtpPass" class="input-control" autocomplete="current-password" placeholder="xxxx xxxx xxxx xxxx">
+                  <button type="button" id="btnToggleSmtpPass" class="btn-toggle-pass" aria-pressed="false" aria-label="Tampilkan sandi aplikasi">
+                    👁️ Lihat
+                  </button>
+                </div>
+                <small class="field-hint">
+                  💡 <strong>Cara mendapatkan App Password Gmail:</strong> Buka Pengaturan Akun Google &rarr; Keamanan &rarr; Verifikasi 2 Langkah &rarr; <em>Sandi Aplikasi (App Passwords)</em> &rarr; Buat sandi baru bernama "Agung Toyota Reminder".
+                </small>
+              </div>
+
+              <button type="submit" class="btn btn-primary">💾 Simpan Pengaturan Gmail</button>
+            </fieldset>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: TEMPLATE PESAN & JAM PENGIRIMAN WITA -->
+    <section id="tab-templates" class="tab-panel">
+      <form id="formScheduleAndTemplates" action="/api/config" method="POST">
+        <div class="settings-card mb-24">
+          <fieldset class="form-fieldset">
+            <legend>⏰ Pengaturan Jam Operasional &amp; Jadwal Kirim WA Otomatis (WITA)</legend>
+            <p class="card-help">
+              Sesuai permintaan Anda: WhatsApp kantor aktif pukul <strong>08:00 – 16:00 WITA</strong>, dan pengiriman WA otomatis dieksekusi pada rentang <strong>10:00 – 14:00 WITA</strong>.
+            </p>
+
+            <div class="four-col-grid">
+              <div class="form-group">
+                <label for="inputOpStart">Jam Mulai Aktif Kantor (WITA)</label>
+                <input type="time" id="inputOpStart" name="operationalStart" class="input-control" value="08:00" required>
+              </div>
+              <div class="form-group">
+                <label for="inputOpEnd">Jam Selesai Kantor (WITA)</label>
+                <input type="time" id="inputOpEnd" name="operationalEnd" class="input-control" value="16:00" required>
+              </div>
+              <div class="form-group">
+                <label for="inputWaStart">Mulai Kirim WA Otomatis (WITA)</label>
+                <input type="time" id="inputWaStart" name="waWindowStart" class="input-control" value="10:00" required>
+              </div>
+              <div class="form-group">
+                <label for="inputWaEnd">Batas Akhir Kirim WA (WITA)</label>
+                <input type="time" id="inputWaEnd" name="waWindowEnd" class="input-control" value="14:00" required>
+              </div>
+            </div>
+
+            <div class="three-col-grid mt-16">
+              <div class="form-group">
+                <label for="inputSamsatDays">Pengingat Samsat (H minus berapa hari?)</label>
+                <input type="number" id="inputSamsatDays" name="samsatAdvanceDays" class="input-control" min="1" max="30" value="3" required>
+              </div>
+              <div class="form-group">
+                <label for="inputAsuransiDays">Pengingat Asuransi (H minus berapa hari?)</label>
+                <input type="number" id="inputAsuransiDays" name="asuransiAdvanceDays" class="input-control" min="1" max="30" value="3" required>
+              </div>
+              <div class="form-group">
+                <label for="inputDelaySec">Jeda Aman Antar Pesan WA (Detik)</label>
+                <input type="number" id="inputDelaySec" name="delaySecondsBetweenMessages" class="input-control" min="2" max="120" value="8" required>
+              </div>
+            </div>
+
+            <div class="checkbox-row mt-12">
+              <input type="checkbox" id="chkAutoSendEnabled" name="autoSendEnabled" checked>
+              <label for="chkAutoSendEnabled"><strong>Aktifkan Penjadwalan Otomatis Harian pada Jam 10:00 – 14:00 WITA</strong></label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="settings-card">
+          <fieldset class="form-fieldset">
+            <legend>✍️ Kustomisasi Template Pesan (3 Tipe Pengingat: Pelanggan &amp; Sales/SA)</legend>
+            <p class="card-help">
+              Variabel otomatis yang bisa digunakan: <code>{nama_pelanggan}</code>, <code>{wa_pelanggan}</code>, <code>{tipe_mobil}</code>, <code>{no_polisi}</code>, <code>{tgl_samsat_indo}</code>, <code>{tgl_asuransi_indo}</code>, <code>{nama_sales}</code>, <code>{wa_sales}</code>, <code>{nama_sa}</code>, <code>{wa_sa}</code>, <code>{nama_pic}</code>, <code>{peran_pic}</code>.
+            </p>
+
+            <div class="two-col-grid">
+              <div class="form-group">
+                <label for="tplBdayCustomer">🎂 1A. Pesan Ulang Tahun (Ke Pelanggan)</label>
+                <textarea id="tplBdayCustomer" name="birthdayCustomer" rows="8" class="input-control"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="tplBdayStaff">🎂 1B. Notifikasi Ulang Tahun (Ke Sales &amp; SA)</label>
+                <textarea id="tplBdayStaff" name="birthdayStaff" rows="8" class="input-control"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="tplSamsatCustomer">🚗 2A. Pengingat H-3 Samsat (Ke Pelanggan)</label>
+                <textarea id="tplSamsatCustomer" name="samsatCustomer" rows="8" class="input-control"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="tplSamsatStaff">🚗 2B. Notifikasi H-3 Samsat (Ke Sales &amp; SA)</label>
+                <textarea id="tplSamsatStaff" name="samsatStaff" rows="8" class="input-control"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="tplAsuransiCustomer">🛡️ 3A. Pengingat H-3 Asuransi (Ke Pelanggan)</label>
+                <textarea id="tplAsuransiCustomer" name="asuransiCustomer" rows="8" class="input-control"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="tplAsuransiStaff">🛡️ 3B. Notifikasi H-3 Asuransi (Ke Sales &amp; SA)</label>
+                <textarea id="tplAsuransiStaff" name="asuransiStaff" rows="8" class="input-control"></textarea>
+              </div>
+            </div>
+
+            <div class="btn-row mt-16">
+              <button type="submit" class="btn btn-primary">💾 Simpan Semua Jadwal &amp; Template Pesan</button>
+            </div>
+          </fieldset>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 5: RIWAYAT LOG PENGIRIMAN -->
+    <section id="tab-logs" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2>📜 Riwayat Pengiriman WhatsApp &amp; Email</h2>
+          <p class="panel-desc">Catatan lengkap pengiriman pesan ke Pelanggan, Sales, dan Service Advisor (SA) beserta waktu WITA.</p>
+        </div>
+      </div>
+      <div id="logsContainer" class="logs-list">
+        <!-- Populated by app.js -->
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER BRANDING -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div>
+        <strong>AGUNG TOYOTA GIANYAR</strong> — Sistem Pengingat Ulang Tahun, Samsat &amp; Asuransi Kendaraan Otomatis
+      </div>
+      <div class="footer-credit">
+        Crafted with precision • <span class="credit-highlight">Design by MDP</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL 1: UPLOAD EXCEL (.XLSX) -->
+  <dialog id="dialogUploadExcel" closedby="any" aria-labelledby="titleUploadExcel" class="app-dialog">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="titleUploadExcel">📤 Upload File Excel Pelanggan (.xlsx)</h3>
+        <button type="button" class="btn-close-dialog" data-close-dialog="dialogUploadExcel" aria-label="Tutup">✕</button>
+      </div>
+      <form id="formUploadExcel" action="/api/excel/upload" method="POST">
+        <fieldset class="form-fieldset">
+          <legend>Pilih File Excel &amp; Mode Import</legend>
+          <div class="upload-dropzone" id="excelDropzone">
+            <input type="file" id="inputExcelFile" name="excelFile" accept=".xlsx,.xls,.csv" class="visually-hidden" required>
+            <label for="inputExcelFile" class="dropzone-label">
+              <span class="dropzone-icon">📊</span>
+              <strong id="selectedFileName">Klik di sini untuk memilih file Excel (.xlsx)</strong>
+              <span>Pastikan terdapat kolom: Nama Pelanggan, No. WA Pelanggan, Email Pelanggan, Tipe Mobil, No. Polisi, Tgl Ulang Tahun, Tgl Habis Samsat, Tgl Expired Asuransi, beserta data Sales &amp; SA.</span>
+            </label>
+          </div>
+
+          <div class="form-group mt-16">
+            <label for="selectUploadMode">Mode Penyimpanan Data:</label>
+            <select id="selectUploadMode" name="mode" class="input-control">
+              <option value="replace">Ganti seluruh daftar pelanggan dengan isi Excel baru ini</option>
+              <option value="append">Tambahkan ke daftar pelanggan yang sudah ada</option>
+            </select>
+          </div>
+
+          <div class="dialog-footer">
+            <a href="/api/excel/template" class="btn btn-outline">📥 Unduh Contoh Template Excel</a>
+            <button type="submit" class="btn btn-primary">✅ Proses &amp; Simpan File Excel</button>
+          </div>
+        </fieldset>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL 2: ADD / EDIT CUSTOMER -->
+  <dialog id="dialogCustomerForm" closedby="any" aria-labelledby="titleCustomerModal" class="app-dialog dialog-lg">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="titleCustomerModal">➕ Tambah / Edit Data Pelanggan</h3>
+        <button type="button" class="btn-close-dialog" data-close-dialog="dialogCustomerForm" aria-label="Tutup">✕</button>
+      </div>
+      <form id="formCustomerData" action="/api/customers" method="POST">
+        <input type="hidden" id="custId" name="id">
+        <fieldset class="form-fieldset">
+          <legend>Data Pelanggan &amp; Kendaraan</legend>
+          <div class="three-col-grid">
+            <div class="form-group">
+              <label for="custNama">Nama Pelanggan *</label>
+              <input type="text" id="custNama" name="namaPelanggan" class="input-control" autocomplete="name" required placeholder="Contoh: I Wayan Sudarma">
+            </div>
+            <div class="form-group">
+              <label for="custWa">No. WhatsApp Pelanggan *</label>
+              <input type="tel" id="custWa" name="waPelanggan" class="input-control" required placeholder="081236xxxxxx / 62812xxx">
+            </div>
+            <div class="form-group">
+              <label for="custEmail">Email Pelanggan</label>
+              <input type="email" id="custEmail" name="emailPelanggan" class="input-control" placeholder="pelanggan@email.com">
+            </div>
+          </div>
+
+          <div class="two-col-grid mt-12">
+            <div class="form-group">
+              <label for="custMobil">Tipe Mobil Toyota *</label>
+              <input type="text" id="custMobil" name="tipeMobil" class="input-control" required placeholder="Contoh: Toyota Innova Zenix Hybrid">
+            </div>
+            <div class="form-group">
+              <label for="custNopol">Nomor Polisi (Plat) *</label>
+              <input type="text" id="custNopol" name="noPolisi" class="input-control" required placeholder="Contoh: DK 1288 KA">
+            </div>
+          </div>
+
+          <div class="three-col-grid mt-12">
+            <div class="form-group">
+              <label for="custUltah">🎂 Tanggal Ulang Tahun</label>
+              <input type="date" id="custUltah" name="tglUlangTahun" class="input-control">
+            </div>
+            <div class="form-group">
+              <label for="custSamsat">🚗 Tanggal Habis Samsat</label>
+              <input type="date" id="custSamsat" name="tglSamsat" class="input-control">
+            </div>
+            <div class="form-group">
+              <label for="custAsuransi">🛡️ Tanggal Expired Asuransi</label>
+              <input type="date" id="custAsuransi" name="tglAsuransi" class="input-control">
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset mt-16">
+          <legend>Data PIC Sales &amp; Service Advisor (SA) — Penerima Notifikasi Follow-Up</legend>
+          <div class="three-col-grid">
+            <div class="form-group">
+              <label for="custNamaSales">👨‍💼 Nama Sales</label>
+              <input type="text" id="custNamaSales" name="namaSales" class="input-control" placeholder="Nama Sales">
+            </div>
+            <div class="form-group">
+              <label for="custWaSales">No. WA Sales</label>
+              <input type="tel" id="custWaSales" name="waSales" class="input-control" placeholder="081338xxxxxx">
+            </div>
+            <div class="form-group">
+              <label for="custEmailSales">Email Sales</label>
+              <input type="email" id="custEmailSales" name="emailSales" class="input-control" placeholder="sales@agungtoyota.com">
+            </div>
+          </div>
+
+          <div class="three-col-grid mt-12">
+            <div class="form-group">
+              <label for="custNamaSA">🔧 Nama Service Advisor (SA)</label>
+              <input type="text" id="custNamaSA" name="namaSA" class="input-control" placeholder="Nama SA">
+            </div>
+            <div class="form-group">
+              <label for="custWaSA">No. WA SA</label>
+              <input type="tel" id="custWaSA" name="waSA" class="input-control" placeholder="081999xxxxxx">
+            </div>
+            <div class="form-group">
+              <label for="custEmailSA">Email SA</label>
+              <input type="email" id="custEmailSA" name="emailSA" class="input-control" placeholder="sa@agungtoyota.com">
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-outline" data-close-dialog="dialogCustomerForm">Batal</button>
+          <button type="submit" class="btn btn-primary">💾 Simpan ke Excel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL 3: PREVIEW PESAN PELANGGAN + SALES + SA -->
+  <dialog id="dialogPreviewMessage" closedby="any" aria-labelledby="titlePreviewModal" class="app-dialog dialog-xl">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="titlePreviewModal">👁️ Preview Pesan WA &amp; Email (Pelanggan, Sales &amp; SA)</h3>
+        <button type="button" class="btn-close-dialog" data-close-dialog="dialogPreviewMessage" aria-label="Tutup">✕</button>
+      </div>
+      <div id="previewModalBody" class="preview-modal-body">
+        <!-- Populated by app.js -->
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn btn-outline" data-close-dialog="dialogPreviewMessage">Tutup</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmSendFromPreview">🚀 Kirim Otomatis Sekarang (WA &amp; Email)</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
