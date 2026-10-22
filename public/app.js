@@ -850,51 +850,13 @@ function renderReportsDashboard() {
   safeSet('kpiMonthlyFailedRate', `${mFailRate} dari total data`);
   safeSet('kpiMonthlyServiceUnits', monthly.estimatedServiceUnits || 0);
 
-  // Month & Year Selector for Monthly Report (Perpetual Multi-Year Support)
-  const monthSelect = document.getElementById('selectReportMonth');
-  const yearSelect = document.getElementById('selectReportYear');
-
-  const INDO_MONTHS = [
-    { num: '01', name: 'Januari' },
-    { num: '02', name: 'Februari' },
-    { num: '03', name: 'Maret' },
-    { num: '04', name: 'April' },
-    { num: '05', name: 'Mei' },
-    { num: '06', name: 'Juni' },
-    { num: '07', name: 'Juli' },
-    { num: '08', name: 'Agustus' },
-    { num: '09', name: 'September' },
-    { num: '10', name: 'Oktober' },
-    { num: '11', name: 'November' },
-    { num: '12', name: 'Desember' }
-  ];
-
+  // Calendar Month Picker (Perpetual Multi-Year Support via Calendar)
+  const monthPicker = document.getElementById('inputReportMonthPicker');
   const currentYearNum = (d.curDate ? parseInt(d.curDate.slice(0, 4), 10) : new Date().getFullYear()) || 2026;
   const activeMonthStr = monthly.month || d.curMonth || `${currentYearNum}-10`;
-  const [activeYearPart, activeMonthPart] = activeMonthStr.split('-');
 
-  if (monthSelect && monthSelect.options.length === 0) {
-    monthSelect.innerHTML = INDO_MONTHS.map(m => 
-      `<option value="${m.num}">${m.name} (${m.num})</option>`
-    ).join('');
-  }
-  if (monthSelect) {
-    monthSelect.value = activeMonthPart || '10';
-  }
-
-  if (yearSelect && yearSelect.options.length === 0) {
-    const startYear = Math.min(2024, currentYearNum - 1);
-    const endYear = Math.max(2035, currentYearNum + 8);
-    const years = [];
-    for (let y = startYear; y <= endYear; y++) {
-      years.push(y);
-    }
-    yearSelect.innerHTML = years.map(y => 
-      `<option value="${y}">${y}${y === currentYearNum ? ' (Tahun Ini)' : ''}</option>`
-    ).join('');
-  }
-  if (yearSelect) {
-    yearSelect.value = activeYearPart || String(currentYearNum);
+  if (monthPicker) {
+    monthPicker.value = activeMonthStr;
   }
 
   const monthlyCatBars = document.getElementById('monthlyCategoryBars');
@@ -1864,25 +1826,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const handleReportMonthYearChange = () => {
-    const ySel = document.getElementById('selectReportYear');
-    const mSel = document.getElementById('selectReportMonth');
-    if (!ySel || !mSel) return;
-    const yVal = ySel.value;
-    const mVal = mSel.value;
-    const combinedMonth = `${yVal}-${mVal}`;
-    appState.selectedReportMonth = combinedMonth;
-    fetchReportAnalytics(null, combinedMonth);
-  };
-
-  const reportMonthSelect = document.getElementById('selectReportMonth');
-  if (reportMonthSelect) {
-    reportMonthSelect.addEventListener('change', handleReportMonthYearChange);
-  }
-
-  const reportYearSelect = document.getElementById('selectReportYear');
-  if (reportYearSelect) {
-    reportYearSelect.addEventListener('change', handleReportMonthYearChange);
+  const monthPicker = document.getElementById('inputReportMonthPicker');
+  if (monthPicker) {
+    monthPicker.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (!val) return;
+      appState.selectedReportMonth = val;
+      fetchReportAnalytics(null, val);
+    });
   }
 
   const btnReportThisMonth = document.getElementById('btnReportThisMonth');
@@ -1891,11 +1842,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const now = new Date();
       const curYear = appState.reportData?.curDate ? appState.reportData.curDate.slice(0, 4) : String(now.getFullYear());
       const curM = appState.reportData?.curDate ? appState.reportData.curDate.slice(5, 7) : String(now.getMonth() + 1).padStart(2, '0');
-      const ySel = document.getElementById('selectReportYear');
-      const mSel = document.getElementById('selectReportMonth');
-      if (ySel) ySel.value = curYear;
-      if (mSel) mSel.value = curM;
       const combinedMonth = `${curYear}-${curM}`;
+      const picker = document.getElementById('inputReportMonthPicker');
+      if (picker) picker.value = combinedMonth;
       appState.selectedReportMonth = combinedMonth;
       fetchReportAnalytics(null, combinedMonth);
     });
