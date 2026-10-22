@@ -59,14 +59,28 @@ function getWitaParts(dateObj = new Date()) {
   }
   const hourNum = parseInt(parts.hour, 10) % 24;
   const minuteNum = parseInt(parts.minute, 10);
+
+  let currentYear = parseInt(parts.year, 10);
+  let dateStr = `${parts.year}-${parts.month}-${parts.day}`;
+
+  if (typeof loadConfig === 'function') {
+    try {
+      const config = loadConfig();
+      if (config.operationalYearMode === 'MANUAL' && config.manualOperationalYear) {
+        currentYear = parseInt(config.manualOperationalYear, 10);
+        dateStr = `${currentYear}-${parts.month}-${parts.day}`;
+      }
+    } catch (_) {}
+  }
+
   return {
-    dateStr: `${parts.year}-${parts.month}-${parts.day}`,
+    dateStr,
     monthDay: `${parts.month}-${parts.day}`,
     timeStr: `${String(hourNum).padStart(2, '0')}:${parts.minute}:${parts.second}`,
     shortTime: `${String(hourNum).padStart(2, '0')}:${parts.minute}`,
     hour: hourNum,
     minute: minuteNum,
-    year: parseInt(parts.year, 10),
+    year: currentYear,
     month: parseInt(parts.month, 10),
     day: parseInt(parts.day, 10)
   };
@@ -155,6 +169,9 @@ const DEFAULT_CONFIG = {
   samsatAdvanceDays: 3,
   asuransiAdvanceDays: 3,
   serviceAdvanceDays: 5,
+  operationalYearMode: 'AUTO',
+  manualOperationalYear: 2026,
+  autoYearRollover: true,
   googleSheetCsvUrl: '',
   googleSheetApiUrl: process.env.GOOGLE_SHEET_API || '',
   smtp: {
@@ -858,7 +875,19 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
   }
 
   // 2. SAMSAT KENDARAAN (H-3 s/d Hari H sebelum tanggal habis Samsat jika belum terkirim)
-  const samsatDiff = diffDaysFromToday(customer.tglSamsat, today);
+  let samsatTarget = customer.tglSamsat;
+  let samsatDiff = diffDaysFromToday(samsatTarget, today);
+  if (config.autoYearRollover !== false && samsatTarget && /^\d{4}-\d{2}-\d{2}$/.test(samsatTarget)) {
+    const sYear = Number(samsatTarget.slice(0, 4));
+    if (sYear < wita.year) {
+      const rolledDate = `${wita.year}-${samsatTarget.slice(5, 10)}`;
+      const rolledDiff = diffDaysFromToday(rolledDate, today);
+      if (rolledDiff !== null && rolledDiff >= 0 && rolledDiff <= (samsatAdvance + 1)) {
+        samsatTarget = rolledDate;
+        samsatDiff = rolledDiff;
+      }
+    }
+  }
   const samsatSentKey = `SAMSAT:${today}`;
   const isSamsatSentToday = (customer.statusLog || '').includes(samsatSentKey);
 
@@ -867,7 +896,7 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       type: 'SAMSAT',
       label: samsatDiff === 0 ? 'Hari H Samsat Kendaraan' : `H-${samsatDiff} Samsat Kendaraan`,
       badgeColor: 'samsat',
-      targetDate: customer.tglSamsat,
+      targetDate: samsatTarget,
       daysRemaining: samsatDiff,
       sentKey: samsatSentKey,
       alreadySentToday: isSamsatSentToday
@@ -875,7 +904,19 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
   }
 
   // 3. EXPIRED ASURANSI (H-3 s/d Hari H sebelum tanggal expired Asuransi jika belum terkirim)
-  const asuransiDiff = diffDaysFromToday(customer.tglAsuransi, today);
+  let asuransiTarget = customer.tglAsuransi;
+  let asuransiDiff = diffDaysFromToday(asuransiTarget, today);
+  if (config.autoYearRollover !== false && asuransiTarget && /^\d{4}-\d{2}-\d{2}$/.test(asuransiTarget)) {
+    const aYear = Number(asuransiTarget.slice(0, 4));
+    if (aYear < wita.year) {
+      const rolledDate = `${wita.year}-${asuransiTarget.slice(5, 10)}`;
+      const rolledDiff = diffDaysFromToday(rolledDate, today);
+      if (rolledDiff !== null && rolledDiff >= 0 && rolledDiff <= (asuransiAdvance + 1)) {
+        asuransiTarget = rolledDate;
+        asuransiDiff = rolledDiff;
+      }
+    }
+  }
   const asuransiSentKey = `ASURANSI:${today}`;
   const isAsuransiSentToday = (customer.statusLog || '').includes(asuransiSentKey);
 
@@ -884,7 +925,7 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       type: 'ASURANSI',
       label: asuransiDiff === 0 ? 'Hari H Expired Asuransi' : `H-${asuransiDiff} Expired Asuransi`,
       badgeColor: 'asuransi',
-      targetDate: customer.tglAsuransi,
+      targetDate: asuransiTarget,
       daysRemaining: asuransiDiff,
       sentKey: asuransiSentKey,
       alreadySentToday: isAsuransiSentToday
@@ -925,7 +966,7 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       type: 'SAMSAT',
       label: `H-${samsatAdvance} Samsat Kendaraan (Jadwal Besok)`,
       scheduledDate: tomorrowDateStr,
-      targetDate: customer.tglSamsat
+      targetDate: samsatTarget
     });
   }
   if (asuransiDiff === asuransiAdvance + 1) {
@@ -933,7 +974,7 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       type: 'ASURANSI',
       label: `H-${asuransiAdvance} Expired Asuransi (Jadwal Besok)`,
       scheduledDate: tomorrowDateStr,
-      targetDate: customer.tglAsuransi
+      targetDate: asuransiTarget
     });
   }
   if (serviceDiff === serviceAdvance + 1) {

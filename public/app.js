@@ -850,15 +850,51 @@ function renderReportsDashboard() {
   safeSet('kpiMonthlyFailedRate', `${mFailRate} dari total data`);
   safeSet('kpiMonthlyServiceUnits', monthly.estimatedServiceUnits || 0);
 
-  // Month Selector Dropdown
+  // Month & Year Selector for Monthly Report (Perpetual Multi-Year Support)
   const monthSelect = document.getElementById('selectReportMonth');
+  const yearSelect = document.getElementById('selectReportYear');
+
+  const INDO_MONTHS = [
+    { num: '01', name: 'Januari' },
+    { num: '02', name: 'Februari' },
+    { num: '03', name: 'Maret' },
+    { num: '04', name: 'April' },
+    { num: '05', name: 'Mei' },
+    { num: '06', name: 'Juni' },
+    { num: '07', name: 'Juli' },
+    { num: '08', name: 'Agustus' },
+    { num: '09', name: 'September' },
+    { num: '10', name: 'Oktober' },
+    { num: '11', name: 'November' },
+    { num: '12', name: 'Desember' }
+  ];
+
+  const currentYearNum = (d.curDate ? parseInt(d.curDate.slice(0, 4), 10) : new Date().getFullYear()) || 2026;
+  const activeMonthStr = monthly.month || d.curMonth || `${currentYearNum}-10`;
+  const [activeYearPart, activeMonthPart] = activeMonthStr.split('-');
+
   if (monthSelect && monthSelect.options.length === 0) {
-    const mList = [
-      { val: '2026-10', text: 'Oktober 2026' },
-      { val: '2026-09', text: 'September 2026' },
-      { val: '2026-08', text: 'Agustus 2026' }
-    ];
-    monthSelect.innerHTML = mList.map(m => `<option value="${m.val}" ${m.val === (monthly.month || '2026-10') ? 'selected' : ''}>${m.text}</option>`).join('');
+    monthSelect.innerHTML = INDO_MONTHS.map(m => 
+      `<option value="${m.num}">${m.name} (${m.num})</option>`
+    ).join('');
+  }
+  if (monthSelect) {
+    monthSelect.value = activeMonthPart || '10';
+  }
+
+  if (yearSelect && yearSelect.options.length === 0) {
+    const startYear = Math.min(2024, currentYearNum - 1);
+    const endYear = Math.max(2035, currentYearNum + 8);
+    const years = [];
+    for (let y = startYear; y <= endYear; y++) {
+      years.push(y);
+    }
+    yearSelect.innerHTML = years.map(y => 
+      `<option value="${y}">${y}${y === currentYearNum ? ' (Tahun Ini)' : ''}</option>`
+    ).join('');
+  }
+  if (yearSelect) {
+    yearSelect.value = activeYearPart || String(currentYearNum);
   }
 
   const monthlyCatBars = document.getElementById('monthlyCategoryBars');
@@ -983,6 +1019,15 @@ function populateConfigForms(cfg) {
   safeSetVal('inputServiceDays', cfg.serviceAdvanceDays ?? 5);
   safeSetVal('inputDelaySec', cfg.delaySecondsBetweenMessages ?? 8);
   safeSetChecked('chkAutoSendEnabled', cfg.autoSendEnabled !== false);
+
+  // Multi-Year & Operational Year Configuration
+  safeSetVal('selectOperationalYearMode', cfg.operationalYearMode || 'AUTO');
+  safeSetVal('inputManualOperationalYear', cfg.manualOperationalYear || (new Date()).getFullYear());
+  safeSetChecked('chkAutoYearRollover', cfg.autoYearRollover !== false);
+  const grpManualYear = document.getElementById('groupManualYear');
+  if (grpManualYear) {
+    grpManualYear.style.display = (cfg.operationalYearMode === 'MANUAL') ? 'block' : 'none';
+  }
 
   if (cfg.templates) {
     safeSetVal('tplBdayCustomer', cfg.templates.birthdayCustomer || '');
@@ -1777,6 +1822,9 @@ document.addEventListener('DOMContentLoaded', () => {
         serviceAdvanceDays: Number(document.getElementById('inputServiceDays')?.value ?? 5),
         delaySecondsBetweenMessages: Number(document.getElementById('inputDelaySec')?.value ?? 8),
         autoSendEnabled: document.getElementById('chkAutoSendEnabled') ? document.getElementById('chkAutoSendEnabled').checked : true,
+        operationalYearMode: document.getElementById('selectOperationalYearMode')?.value || 'AUTO',
+        manualOperationalYear: Number(document.getElementById('inputManualOperationalYear')?.value || 2026),
+        autoYearRollover: document.getElementById('chkAutoYearRollover') ? document.getElementById('chkAutoYearRollover').checked : true,
         templates: {
           birthdayCustomer: document.getElementById('tplBdayCustomer')?.value || '',
           birthdayStaff: document.getElementById('tplBdayStaff')?.value || '',
@@ -1793,8 +1841,17 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      showToast('✅ Jadwal WITA (10:00–14:00 WITA) & Template Pesan berhasil disimpan!');
+      showToast('✅ Pengaturan Jadwal WITA, Tahun Operasional & Template Pesan berhasil disimpan!');
       fetchDashboard(false);
+    });
+  }
+
+  // Toggle Manual Year input visibility on change
+  const selectOpYearMode = document.getElementById('selectOperationalYearMode');
+  if (selectOpYearMode) {
+    selectOpYearMode.addEventListener('change', (e) => {
+      const grp = document.getElementById('groupManualYear');
+      if (grp) grp.style.display = (e.target.value === 'MANUAL') ? 'block' : 'none';
     });
   }
 
@@ -1807,11 +1864,40 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const handleReportMonthYearChange = () => {
+    const ySel = document.getElementById('selectReportYear');
+    const mSel = document.getElementById('selectReportMonth');
+    if (!ySel || !mSel) return;
+    const yVal = ySel.value;
+    const mVal = mSel.value;
+    const combinedMonth = `${yVal}-${mVal}`;
+    appState.selectedReportMonth = combinedMonth;
+    fetchReportAnalytics(null, combinedMonth);
+  };
+
   const reportMonthSelect = document.getElementById('selectReportMonth');
   if (reportMonthSelect) {
-    reportMonthSelect.addEventListener('change', (e) => {
-      appState.selectedReportMonth = e.target.value;
-      fetchReportAnalytics(null, e.target.value);
+    reportMonthSelect.addEventListener('change', handleReportMonthYearChange);
+  }
+
+  const reportYearSelect = document.getElementById('selectReportYear');
+  if (reportYearSelect) {
+    reportYearSelect.addEventListener('change', handleReportMonthYearChange);
+  }
+
+  const btnReportThisMonth = document.getElementById('btnReportThisMonth');
+  if (btnReportThisMonth) {
+    btnReportThisMonth.addEventListener('click', () => {
+      const now = new Date();
+      const curYear = appState.reportData?.curDate ? appState.reportData.curDate.slice(0, 4) : String(now.getFullYear());
+      const curM = appState.reportData?.curDate ? appState.reportData.curDate.slice(5, 7) : String(now.getMonth() + 1).padStart(2, '0');
+      const ySel = document.getElementById('selectReportYear');
+      const mSel = document.getElementById('selectReportMonth');
+      if (ySel) ySel.value = curYear;
+      if (mSel) mSel.value = curM;
+      const combinedMonth = `${curYear}-${curM}`;
+      appState.selectedReportMonth = combinedMonth;
+      fetchReportAnalytics(null, combinedMonth);
     });
   }
 

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=20261022_3">
+  <link rel="stylesheet" href="/styles.css?v=20261022_4">
   <script>
     // Bulletproof Early Functions for Sidebar & Tabs
     function toggleSidebar(forceState) {
@@ -558,6 +558,43 @@
           </fieldset>
         </div>
 
+        <!-- PENGATURAN TAHUN OPERASIONAL & SIKLUS TAHUNAN (MULTI-YEAR SUPPORT) -->
+        <div class="settings-card mb-24" id="cardOperationalYear">
+          <fieldset class="form-fieldset">
+            <legend>⚙️ Pengaturan Tahun Operasional &amp; Siklus Tahunan (Multi-Year Engine)</legend>
+            <p class="card-help">
+              Aplikasi ini dirancang untuk dapat Anda gunakan <strong>tanpa batas tahun (perpetual multi-year)</strong>: 2026, 2027, 2028, 2029, 2030, dan seterusnya. Anda dapat membiarkannya berjalan <strong>Otomatis (Ikuti Kalender Nyata WITA)</strong> atau mengatur tahun operasional secara <strong>Manual</strong> untuk keperluan simulasi/arsip.
+            </p>
+
+            <div class="two-col-grid">
+              <div class="form-group">
+                <label for="selectOperationalYearMode"><strong>Mode Kalender Tahun Operasional:</strong></label>
+                <select id="selectOperationalYearMode" name="operationalYearMode" class="input-control">
+                  <option value="AUTO">🌐 Otomatis (Ikuti Kalender Nyata WITA - Disarankan)</option>
+                  <option value="MANUAL">🛠️ Manual Override (Atur Tahun Manual Tertentu)</option>
+                </select>
+                <p class="field-hint">Dalam mode otomatis, sistem secara otomatis berganti tahun sendiri setiap tahun baru tiba tanpa Anda perlu setting ulang.</p>
+              </div>
+
+              <div class="form-group" id="groupManualYear">
+                <label for="inputManualOperationalYear"><strong>Tahun Operasional Manual:</strong></label>
+                <input type="number" id="inputManualOperationalYear" name="manualOperationalYear" class="input-control" min="2020" max="2050" value="2026" placeholder="cth: 2027">
+                <p class="field-hint">Hanya digunakan apabila Mode Kalender diatur ke Manual Override.</p>
+              </div>
+            </div>
+
+            <div class="checkbox-row mt-12">
+              <input type="checkbox" id="chkAutoYearRollover" name="autoYearRollover" checked>
+              <label for="chkAutoYearRollover">
+                <strong>🔄 Aktifkan Siklus Tahunan Otomatis (Auto-Rollover Samsat &amp; Ulang Tahun)</strong>
+                <span style="display:block; font-size:11.5px; color:var(--slate-500); font-weight:normal; margin-top:2px;">
+                  Jika aktif, untuk pengingat tahunan (Ulang Tahun &amp; Pajak Samsat tahunan), sistem otomatis mencocokkan tanggal &amp; bulan (MM-DD) dengan tahun berjalan, sehingga pengingat tetap bekerja tanpa henti di tahun-tahun berikutnya meskipun tahun di data spreadsheet belum sempat diperbarui oleh staf.
+                </span>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+
         <div class="settings-card">
           <fieldset class="form-fieldset">
             <legend>✍️ Kustomisasi Template Pesan (4 Tipe Pengingat: Pelanggan &amp; Sales/SA)</legend>
@@ -784,10 +821,21 @@
               <p class="card-help" style="margin-top:2px;">Rekapitulasi total efisiensi dan distribusi kategori pengingat otomatis Agung Toyota Gianyar.</p>
             </div>
             <div class="report-month-selector">
-              <label for="selectReportMonth" class="visually-hidden">Pilih Bulan Laporan</label>
-              <select id="selectReportMonth" class="input-control" style="width: auto; padding: 4px 8px; font-size: 13px;">
-                <!-- Populated dynamically -->
-              </select>
+              <div class="report-select-group">
+                <label for="selectReportMonth">Bulan:</label>
+                <select id="selectReportMonth" class="input-control" style="width: auto; padding: 5px 10px; font-size: 13px; font-weight: 600;">
+                  <!-- All 12 Months: Januari - Desember populated dynamically -->
+                </select>
+              </div>
+              <div class="report-select-group">
+                <label for="selectReportYear">Tahun:</label>
+                <select id="selectReportYear" class="input-control" style="width: auto; padding: 5px 10px; font-size: 13px; font-weight: 600;">
+                  <!-- Multi-Year populated dynamically -->
+                </select>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" id="btnReportThisMonth" style="font-size: 11.5px; padding: 5px 10px;" title="Kembali ke Bulan & Tahun Berjalan">
+                📅 Bulan Ini
+              </button>
             </div>
           </div>
 
@@ -1121,6 +1169,6 @@
   <!-- TOAST NOTIFICATION -->
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-  <script src="/app.js?v=20261022_3"></script>
+  <script src="/app.js?v=20261022_4"></script>
 </body>
 </html>

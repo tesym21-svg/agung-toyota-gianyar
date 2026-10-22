@@ -2527,3 +2527,22 @@ textarea.input-control {
   color: var(--obsidian);
 }
 
+.report-month-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.report-select-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.report-select-group label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--slate-700);
+}
+
