@@ -6,6 +6,14 @@ const nodemailer = require('nodemailer');
 const QRCode = require('qrcode');
 const pino = require('pino');
 
+// Cegah server berhenti saat laptop sleep/wake atau koneksi internet terputus sementara (WebSocket 1006)
+process.on('unhandledRejection', (reason) => {
+  console.warn('[Auto-Recovery] Menangani koneksi ulang otomatis:', reason?.message || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.warn('[Auto-Recovery] Menangani exception:', err?.message || err);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -146,6 +154,7 @@ const DEFAULT_CONFIG = {
   delaySecondsBetweenMessages: 8,
   samsatAdvanceDays: 3,
   asuransiAdvanceDays: 3,
+  serviceAdvanceDays: 5,
   googleSheetCsvUrl: '',
   smtp: {
     enabled: false,
@@ -221,6 +230,28 @@ const DEFAULT_CONFIG = {
       `🛡️ Tgl Expired Asuransi: *{tgl_asuransi_indo}* (*3 Hari Lagi*)\n` +
       `📱 WA Pelanggan: {wa_pelanggan}\n\n` +
       `Silakan segera menghubungi pelanggan secara pribadi untuk penawaran perpanjangan asuransi melalui tautan berikut:\n` +
+      `👉 https://wa.me/{wa_pelanggan}`,
+
+    serviceCustomer:
+      `Halo Bapak/Ibu *{nama_pelanggan}*, 🙏\n\n` +
+      `Salam hangat dari *Agung Toyota Gianyar*. Kami ingin mengingatkan bahwa jadwal *Servis Berkala (Next Service)* kendaraan Toyota Bapak/Ibu akan tiba dalam *5 hari*:\n\n` +
+      `🚗 Tipe Mobil: *{tipe_mobil}*\n` +
+      `🔢 No. Polisi: *{no_polisi}*\n` +
+      `🔧 Jadwal Next Service: *{tgl_service_indo}* (*H-5*)\n\n` +
+      `Agar performa, kenyamanan, dan garansi kendaraan Toyota Bapak/Ibu tetap terjaga optimal, silakan melakukan Booking Service lebih awal melalui:\n` +
+      `• Service Advisor (SA): *{nama_sa}* ({wa_sa})\n` +
+      `• Sales: *{nama_sales}* ({wa_sales})\n\n` +
+      `Terima kasih,\n*Agung Toyota Gianyar*\n_Design by MDP_`,
+
+    serviceStaff:
+      `🔔 *[REMINDER H-5 NEXT SERVICE KENDARAAN - AGUNG TOYOTA GIANYAR]*\n\n` +
+      `Halo *{nama_pic}* ({peran_pic}),\n` +
+      `Pengingat H-5 *Jadwal Servis Berkala (Next Service)* untuk pelanggan Anda:\n\n` +
+      `👤 Nama Pelanggan: *{nama_pelanggan}*\n` +
+      `🚗 Kendaraan: *{tipe_mobil}* (*{no_polisi}*)\n` +
+      `🔧 Tgl Next Service: *{tgl_service_indo}* (*5 Hari Lagi*)\n` +
+      `📱 WA Pelanggan: {wa_pelanggan}\n\n` +
+      `Mohon bantuannya untuk menghubungi pelanggan secara pribadi guna konfirmasi Booking Service melalui tautan berikut:\n` +
       `👉 https://wa.me/{wa_pelanggan}`
   }
 };
@@ -287,6 +318,7 @@ const EXCEL_HEADERS = [
   'Tgl Ulang Tahun',
   'Tgl Habis Samsat',
   'Tgl Expired Asuransi',
+  'Tgl Next Service',
   'Nama Sales',
   'No. WA Sales',
   'Email Sales',
@@ -315,6 +347,7 @@ function createInitialSampleRows() {
       'Tgl Ulang Tahun': bdayToday,
       'Tgl Habis Samsat': hPlus10,
       'Tgl Expired Asuransi': hPlus5,
+      'Tgl Next Service': hPlus5,
       'Nama Sales': 'I Made Putra',
       'No. WA Sales': '6281338002201',
       'Email Sales': 'made.putra@agungtoyota-gianyar.com',
@@ -333,6 +366,7 @@ function createInitialSampleRows() {
       'Tgl Ulang Tahun': '1993-05-14',
       'Tgl Habis Samsat': hPlus3,
       'Tgl Expired Asuransi': hPlus10,
+      'Tgl Next Service': hPlus5,
       'Nama Sales': 'Ni Kadek Dewi',
       'No. WA Sales': '6281338002202',
       'Email Sales': 'kadek.dewi@agungtoyota-gianyar.com',
@@ -351,6 +385,7 @@ function createInitialSampleRows() {
       'Tgl Ulang Tahun': '1984-11-28',
       'Tgl Habis Samsat': hPlus5,
       'Tgl Expired Asuransi': hPlus3,
+      'Tgl Next Service': hPlus10,
       'Nama Sales': 'I Made Putra',
       'No. WA Sales': '6281338002201',
       'Email Sales': 'made.putra@agungtoyota-gianyar.com',
@@ -369,6 +404,7 @@ function createInitialSampleRows() {
       'No. Polisi': 'DK 1720 KB',
       'Tgl Habis Samsat': hPlus3,
       'Tgl Expired Asuransi': hPlus3,
+      'Tgl Next Service': hPlus5,
       'Nama Sales': 'Ni Kadek Dewi',
       'No. WA Sales': '6281338002202',
       'Email Sales': 'kadek.dewi@agungtoyota-gianyar.com',
@@ -391,6 +427,7 @@ function writeCustomersToExcel(customers, targetFilePath = EXCEL_PATH) {
     'Tgl Ulang Tahun': normalizeDateCell(c.tglUlangTahun),
     'Tgl Habis Samsat': normalizeDateCell(c.tglSamsat),
     'Tgl Expired Asuransi': normalizeDateCell(c.tglAsuransi),
+    'Tgl Next Service': normalizeDateCell(c.tglService),
     'Nama Sales': c.namaSales || '',
     'No. WA Sales': normalizePhone(c.waSales),
     'Email Sales': c.emailSales || '',
@@ -412,6 +449,7 @@ function writeCustomersToExcel(customers, targetFilePath = EXCEL_PATH) {
     { wch: 16 }, // Tgl Ulang Tahun
     { wch: 16 }, // Tgl Habis Samsat
     { wch: 18 }, // Tgl Expired Asuransi
+    { wch: 18 }, // Tgl Next Service
     { wch: 18 }, // Nama Sales
     { wch: 16 }, // No. WA Sales
     { wch: 28 }, // Email Sales
@@ -455,6 +493,7 @@ function mapExcelRowToCustomer(row, fallbackNo) {
     tglUlangTahun: normalizeDateCell(getCol(['Tgl Ulang Tahun', 'Tanggal Ulang Tahun', 'Ulang Tahun', 'Ultah', 'Tgl Lahir'])),
     tglSamsat: normalizeDateCell(getCol(['Tgl Habis Samsat', 'Tanggal Samsat', 'Tgl Samsat', 'Samsat', 'Jatuh Tempo Samsat'])),
     tglAsuransi: normalizeDateCell(getCol(['Tgl Expired Asuransi', 'Tanggal Expired Asuransi', 'Tgl Asuransi', 'Asuransi', 'Expired Asuransi'])),
+    tglService: normalizeDateCell(getCol(['Tgl Next Service', 'Tanggal Next Service', 'Next Service', 'Tgl Service', 'Tanggal Service', 'Jadwal Service', 'Service Berkala'])),
     namaSales: String(getCol(['Nama Sales', 'Sales']) || '').trim(),
     waSales: normalizePhone(getCol(['No. WA Sales', 'WA Sales', 'HP Sales'])),
     emailSales: String(getCol(['Email Sales']) || '').trim(),
@@ -477,13 +516,14 @@ function readCustomersFromExcel() {
 }
 
 // ============================================================================
-// REMINDER EVALUATION ENGINE (3 TIPE PENGINGAT)
+// REMINDER EVALUATION ENGINE (4 TIPE PENGINGAT: ULTAH, SAMSAT, ASURANSI, SERVICE)
 // ============================================================================
 function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
   const today = wita.dateStr;
   const todayMonthDay = wita.monthDay;
   const samsatAdvance = Number(config.samsatAdvanceDays ?? 3);
   const asuransiAdvance = Number(config.asuransiAdvanceDays ?? 3);
+  const serviceAdvance = Number(config.serviceAdvanceDays ?? 5);
 
   const reminders = [];
 
@@ -542,6 +582,23 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
     });
   }
 
+  // 4. NEXT SERVICE KENDARAAN (H-5 s/d Hari H sebelum tanggal Next Service jika belum terkirim)
+  const serviceDiff = diffDaysFromToday(customer.tglService, today);
+  const serviceSentKey = `SERVICE:${today}`;
+  const isServiceSentToday = (customer.statusLog || '').includes(serviceSentKey);
+
+  if (serviceDiff !== null && serviceDiff >= 0 && serviceDiff <= serviceAdvance) {
+    reminders.push({
+      type: 'SERVICE',
+      label: serviceDiff === 0 ? 'Hari H Next Service' : `H-${serviceDiff} Next Service`,
+      badgeColor: 'service',
+      targetDate: customer.tglService,
+      daysRemaining: serviceDiff,
+      sentKey: serviceSentKey,
+      alreadySentToday: isServiceSentToday
+    });
+  }
+
   const tomorrowDateStr = addDaysToDateStr(today, 1);
   const tomorrowMonthDay = tomorrowDateStr.slice(5, 10);
   const tomorrowReminders = [];
@@ -570,11 +627,20 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       targetDate: customer.tglAsuransi
     });
   }
+  if (serviceDiff === serviceAdvance + 1) {
+    tomorrowReminders.push({
+      type: 'SERVICE',
+      label: `H-${serviceAdvance} Next Service (Jadwal Besok)`,
+      scheduledDate: tomorrowDateStr,
+      targetDate: customer.tglService
+    });
+  }
 
   return {
     ...customer,
     samsatDiff,
     asuransiDiff,
+    serviceDiff,
     isBirthdayToday,
     activeReminders: reminders,
     tomorrowReminders,
@@ -602,6 +668,7 @@ function buildMessagesForReminder(customer, reminderType, config) {
     tgl_ultah_indo: formatDateIndonesian(customer.tglUlangTahun),
     tgl_samsat_indo: formatDateIndonesian(customer.tglSamsat),
     tgl_asuransi_indo: formatDateIndonesian(customer.tglAsuransi),
+    tgl_service_indo: formatDateIndonesian(customer.tglService),
     nama_sales: customer.namaSales || 'Tim Sales Agung Toyota Gianyar',
     wa_sales: customer.waSales || '-',
     email_sales: customer.emailSales || '-',
@@ -637,6 +704,12 @@ function buildMessagesForReminder(customer, reminderType, config) {
     emailSubjectCust = `Pengingat H-3 Expired Asuransi Toyota ${customer.tipeMobil} (${customer.noPolisi}) - Agung Toyota Gianyar${timeTag}`;
     emailSubjectStaff = `[Reminder H-3 Asuransi] ${customer.namaPelanggan} - ${customer.noPolisi} (${formatDateIndonesian(customer.tglAsuransi)})${timeTag}`;
     categoryTitle = 'Pengingat H-3 Expired Asuransi Kendaraan';
+  } else if (reminderType === 'SERVICE') {
+    custTpl = config.templates.serviceCustomer || DEFAULT_CONFIG.templates.serviceCustomer;
+    staffTpl = config.templates.serviceStaff || DEFAULT_CONFIG.templates.serviceStaff;
+    emailSubjectCust = `Pengingat H-5 Jadwal Servis Berkala Toyota ${customer.tipeMobil} (${customer.noPolisi}) - Agung Toyota Gianyar${timeTag}`;
+    emailSubjectStaff = `[Reminder H-5 Next Service] ${customer.namaPelanggan} - ${customer.noPolisi} (${formatDateIndonesian(customer.tglService)})${timeTag}`;
+    categoryTitle = 'Pengingat H-5 Jadwal Servis Berkala (Next Service)';
   }
 
   const customerText = renderTemplate(custTpl, baseVars);
@@ -1142,6 +1215,7 @@ app.get('/api/dashboard', (req, res) => {
     dueBirthdayToday: evaluated.filter(c => c.activeReminders.some(r => r.type === 'ULTAH')).length,
     dueSamsatH3: evaluated.filter(c => c.activeReminders.some(r => r.type === 'SAMSAT')).length,
     dueAsuransiH3: evaluated.filter(c => c.activeReminders.some(r => r.type === 'ASURANSI')).length,
+    dueServiceH5: evaluated.filter(c => c.activeReminders.some(r => r.type === 'SERVICE')).length,
     totalPendingToday: evaluated.reduce(
       (acc, c) => acc + c.activeReminders.filter(r => !r.alreadySentToday).length,
       0
@@ -1185,6 +1259,7 @@ app.post('/api/wa/test-direct', async (req, res) => {
       `1️⃣ Ucapan Ulang Tahun (Hari H)\n` +
       `2️⃣ Pengingat Samsat Kendaraan (H-3)\n` +
       `3️⃣ Pengingat Expired Asuransi (H-3)\n` +
+      `4️⃣ Pengingat Jadwal Next Service (H-5)\n` +
       `secara otomatis ke Pelanggan, Sales, dan SA! 🚗✨`;
 
     const customers = readCustomersFromExcel();

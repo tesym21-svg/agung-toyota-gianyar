@@ -124,6 +124,8 @@ function renderHeaderAndStats(data) {
   document.getElementById('statBirthday').textContent = data.stats.dueBirthdayToday ?? 0;
   document.getElementById('statSamsat').textContent = data.stats.dueSamsatH3 ?? 0;
   document.getElementById('statAsuransi').textContent = data.stats.dueAsuransiH3 ?? 0;
+  const statServiceEl = document.getElementById('statService');
+  if (statServiceEl) statServiceEl.textContent = data.stats.dueServiceH5 ?? 0;
   document.getElementById('badgePendingToday').textContent = data.stats.totalPendingToday ?? 0;
 
   const opStart = data.config.operationalStart || '08:00';
@@ -172,12 +174,20 @@ function renderTodayReminders() {
   }
 
   const renderCard = ({ cust, rem, isTomorrow }) => {
-    const icon = rem.type === 'ULTAH' ? '🎂' : rem.type === 'SAMSAT' ? '🚗' : '🛡️';
+    const icon = rem.type === 'ULTAH'
+      ? '🎂'
+      : rem.type === 'SAMSAT'
+        ? '🚗'
+        : rem.type === 'ASURANSI'
+          ? '🛡️'
+          : '🔧';
     const dateLabel = rem.type === 'ULTAH'
       ? `Tgl Lahir: ${formatDateIndoShort(cust.tglUlangTahun)}`
       : rem.type === 'SAMSAT'
         ? `Jatuh Tempo Samsat: ${formatDateIndoShort(cust.tglSamsat)} (H-3)`
-        : `Expired Asuransi: ${formatDateIndoShort(cust.tglAsuransi)} (H-3)`;
+        : rem.type === 'ASURANSI'
+          ? `Expired Asuransi: ${formatDateIndoShort(cust.tglAsuransi)} (H-3)`
+          : `Jadwal Next Service: ${formatDateIndoShort(cust.tglService)} (H-5)`;
 
     const statusBadgeHtml = isTomorrow
       ? `<span class="sent-pill pending" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;">
@@ -269,7 +279,7 @@ function renderCustomerTable() {
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" style="text-align: center; padding: 28px; color: var(--slate-600);">
+        <td colspan="11" style="text-align: center; padding: 28px; color: var(--slate-600);">
           Data pelanggan tidak ditemukan. Silakan tambah pelanggan atau upload file Excel.
         </td>
       </tr>
@@ -292,6 +302,13 @@ function renderCustomerTable() {
       ? `<span class="rem-badge ASURANSI" style="margin-top:4px;">🛡️ H-3 Hari Ini!</span>`
       : c.asuransiDiff !== null && c.asuransiDiff >= 0 && c.asuransiDiff <= 14
         ? `<div style="font-size:11px;color:#1d4ed8;font-weight:700;">H-${c.asuransiDiff} hari lagi</div>`
+        : '';
+
+    const serviceAdv = Number(appState.config.serviceAdvanceDays ?? 5);
+    const serviceHint = c.serviceDiff === serviceAdv
+      ? `<span class="rem-badge SERVICE" style="margin-top:4px;">🔧 H-${serviceAdv} Hari Ini!</span>`
+      : c.serviceDiff !== null && c.serviceDiff >= 0 && c.serviceDiff <= 14
+        ? `<div style="font-size:11px;color:#0f766e;font-weight:700;">H-${c.serviceDiff} hari lagi</div>`
         : '';
 
     return `
@@ -319,6 +336,10 @@ function renderCustomerTable() {
           ${asuransiHint}
         </td>
         <td>
+          <div>${formatDateIndoShort(c.tglService)}</div>
+          ${serviceHint}
+        </td>
+        <td>
           <strong>${escapeHtml(c.namaSales || '-')}</strong>
           <div style="font-size:11.5px;color:var(--slate-600);">📱 ${escapeHtml(c.waSales || '-')}</div>
           <div style="font-size:11px;color:var(--slate-600);">${escapeHtml(c.emailSales || '')}</div>
@@ -337,9 +358,9 @@ function renderCustomerTable() {
         </td>
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button type="button" class="btn btn-sm btn-primary" data-action="send-single" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'ULTAH'}" title="Langsung Kirim WA & Email ke Pelanggan, Sales, dan SA">🚀 Kirim</button>
+            <button type="button" class="btn btn-sm btn-primary" data-action="send-single" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'SERVICE'}" title="Langsung Kirim WA & Email ke Pelanggan, Sales, dan SA">🚀 Kirim</button>
             <button type="button" class="btn btn-sm btn-outline" data-action="edit-customer" data-id="${c.id}">✏️ Edit</button>
-            <button type="button" class="btn btn-sm btn-outline" data-action="preview" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'ULTAH'}" title="Preview & Pilih Tipe Pesan">👁️ Pesan</button>
+            <button type="button" class="btn btn-sm btn-outline" data-action="preview" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'SERVICE'}" title="Preview & Pilih Tipe Pesan">👁️ Pesan</button>
             <button type="button" class="btn btn-sm btn-danger" data-action="delete-customer" data-id="${c.id}">🗑️</button>
           </div>
         </td>
@@ -512,6 +533,8 @@ function populateConfigForms(cfg) {
   document.getElementById('inputWaEnd').value = cfg.waWindowEnd || '14:00';
   document.getElementById('inputSamsatDays').value = cfg.samsatAdvanceDays ?? 3;
   document.getElementById('inputAsuransiDays').value = cfg.asuransiAdvanceDays ?? 3;
+  const srvDaysEl = document.getElementById('inputServiceDays');
+  if (srvDaysEl) srvDaysEl.value = cfg.serviceAdvanceDays ?? 5;
   document.getElementById('inputDelaySec').value = cfg.delaySecondsBetweenMessages ?? 8;
   document.getElementById('chkAutoSendEnabled').checked = cfg.autoSendEnabled !== false;
 
@@ -522,6 +545,10 @@ function populateConfigForms(cfg) {
     document.getElementById('tplSamsatStaff').value = cfg.templates.samsatStaff || '';
     document.getElementById('tplAsuransiCustomer').value = cfg.templates.asuransiCustomer || '';
     document.getElementById('tplAsuransiStaff').value = cfg.templates.asuransiStaff || '';
+    const tplSrvCust = document.getElementById('tplServiceCustomer');
+    const tplSrvStaff = document.getElementById('tplServiceStaff');
+    if (tplSrvCust) tplSrvCust.value = cfg.templates.serviceCustomer || '';
+    if (tplSrvStaff) tplSrvStaff.value = cfg.templates.serviceStaff || '';
   }
 }
 
@@ -544,10 +571,11 @@ async function openPreviewModal(customerId, reminderType) {
         <div>
           <strong>Pelanggan:</strong> ${escapeHtml(customer.namaPelanggan)} (${escapeHtml(customer.tipeMobil)} • ${escapeHtml(customer.noPolisi)})
         </div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button type="button" class="btn btn-sm ${reminderType === 'ULTAH' ? 'btn-primary' : 'btn-outline'}" data-switch-preview="ULTAH">🎂 Ulang Tahun</button>
           <button type="button" class="btn btn-sm ${reminderType === 'SAMSAT' ? 'btn-primary' : 'btn-outline'}" data-switch-preview="SAMSAT">🚗 Samsat (H-3)</button>
           <button type="button" class="btn btn-sm ${reminderType === 'ASURANSI' ? 'btn-primary' : 'btn-outline'}" data-switch-preview="ASURANSI">🛡️ Asuransi (H-3)</button>
+          <button type="button" class="btn btn-sm ${reminderType === 'SERVICE' ? 'btn-primary' : 'btn-outline'}" data-switch-preview="SERVICE">🔧 Next Service (H-5)</button>
         </div>
       </div>
 
@@ -746,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchDashboard(false);
   });
 
-  // Filter Chips for 3 Reminder Types
+  // Filter Chips for 4 Reminder Types
   document.querySelectorAll('[data-type-filter]').forEach((chip) => {
     chip.addEventListener('click', () => {
       document.querySelectorAll('[data-type-filter]').forEach(c => c.classList.remove('active'));
@@ -765,7 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const type = btn.getAttribute('data-type');
 
     if (action === 'preview') {
-      openPreviewModal(id, type || 'ULTAH');
+      openPreviewModal(id, type || 'SERVICE');
     } else if (action === 'send-single') {
       triggerSingleSend(id, type);
     } else if (action === 'edit-customer') {
@@ -781,6 +809,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('custUltah').value = cust.tglUlangTahun || '';
       document.getElementById('custSamsat').value = cust.tglSamsat || '';
       document.getElementById('custAsuransi').value = cust.tglAsuransi || '';
+      const srvInput = document.getElementById('custService');
+      if (srvInput) srvInput.value = cust.tglService || '';
       document.getElementById('custNamaSales').value = cust.namaSales || '';
       document.getElementById('custWaSales').value = cust.waSales || '';
       document.getElementById('custEmailSales').value = cust.emailSales || '';
@@ -989,6 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
       waWindowEnd: document.getElementById('inputWaEnd').value,
       samsatAdvanceDays: Number(document.getElementById('inputSamsatDays').value),
       asuransiAdvanceDays: Number(document.getElementById('inputAsuransiDays').value),
+      serviceAdvanceDays: Number(document.getElementById('inputServiceDays')?.value || 5),
       delaySecondsBetweenMessages: Number(document.getElementById('inputDelaySec').value),
       autoSendEnabled: document.getElementById('chkAutoSendEnabled').checked,
       templates: {
@@ -997,7 +1028,9 @@ document.addEventListener('DOMContentLoaded', () => {
         samsatCustomer: document.getElementById('tplSamsatCustomer').value,
         samsatStaff: document.getElementById('tplSamsatStaff').value,
         asuransiCustomer: document.getElementById('tplAsuransiCustomer').value,
-        asuransiStaff: document.getElementById('tplAsuransiStaff').value
+        asuransiStaff: document.getElementById('tplAsuransiStaff').value,
+        serviceCustomer: document.getElementById('tplServiceCustomer')?.value || '',
+        serviceStaff: document.getElementById('tplServiceStaff')?.value || ''
       }
     };
     await fetch('/api/config', {

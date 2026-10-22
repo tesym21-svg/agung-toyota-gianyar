@@ -110,41 +110,75 @@
       </div>
     </section>
 
-    <!-- KPI SUMMARY CARDS -->
+    <!-- SLEEK COMPACT 5-CARD KPI BAR -->
     <section class="kpi-grid" aria-label="Ringkasan Pengingat Hari Ini">
       <article class="kpi-card kpi-total">
-        <div class="kpi-icon">👥</div>
-        <div class="kpi-info">
-          <span class="kpi-label">Total Data Pelanggan (Excel)</span>
+        <div class="kpi-top-row">
+          <span class="kpi-icon" aria-hidden="true">👥</span>
+          <span class="kpi-tag tag-total">DATABASE</span>
+        </div>
+        <div class="kpi-main-row">
           <strong class="kpi-number" id="statTotalCustomers">0</strong>
-          <span class="kpi-sub">Tersimpan otomatis di file .xlsx</span>
+          <div class="kpi-text-group">
+            <span class="kpi-label">Total Pelanggan</span>
+            <span class="kpi-sub">Data Aktif Excel (.xlsx)</span>
+          </div>
         </div>
       </article>
 
       <article class="kpi-card kpi-birthday">
-        <div class="kpi-icon">🎂</div>
-        <div class="kpi-info">
-          <span class="kpi-label">Ulang Tahun Hari Ini (Hari H)</span>
+        <div class="kpi-top-row">
+          <span class="kpi-icon" aria-hidden="true">🎂</span>
+          <span class="kpi-tag tag-bday">HARI H</span>
+        </div>
+        <div class="kpi-main-row">
           <strong class="kpi-number" id="statBirthday">0</strong>
-          <span class="kpi-sub">Otomatis ke Pelanggan + Sales &amp; SA</span>
+          <div class="kpi-text-group">
+            <span class="kpi-label">Ulang Tahun</span>
+            <span class="kpi-sub">Ucapan tepat di Hari H</span>
+          </div>
         </div>
       </article>
 
       <article class="kpi-card kpi-samsat">
-        <div class="kpi-icon">🚗</div>
-        <div class="kpi-info">
-          <span class="kpi-label">Jatuh Tempo Samsat (H-3)</span>
+        <div class="kpi-top-row">
+          <span class="kpi-icon" aria-hidden="true">🚗</span>
+          <span class="kpi-tag tag-samsat">H-3</span>
+        </div>
+        <div class="kpi-main-row">
           <strong class="kpi-number" id="statSamsat">0</strong>
-          <span class="kpi-sub">Otomatis 3 hari sebelum STNK habis</span>
+          <div class="kpi-text-group">
+            <span class="kpi-label">Pajak / Samsat</span>
+            <span class="kpi-sub">3 hari sebelum STNK</span>
+          </div>
         </div>
       </article>
 
       <article class="kpi-card kpi-asuransi">
-        <div class="kpi-icon">🛡️</div>
-        <div class="kpi-info">
-          <span class="kpi-label">Expired Asuransi Mobil (H-3)</span>
+        <div class="kpi-top-row">
+          <span class="kpi-icon" aria-hidden="true">🛡️</span>
+          <span class="kpi-tag tag-asuransi">H-3</span>
+        </div>
+        <div class="kpi-main-row">
           <strong class="kpi-number" id="statAsuransi">0</strong>
-          <span class="kpi-sub">Otomatis 3 hari sebelum polis berakhir</span>
+          <div class="kpi-text-group">
+            <span class="kpi-label">Polis Asuransi</span>
+            <span class="kpi-sub">3 hari sebelum expired</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="kpi-card kpi-service">
+        <div class="kpi-top-row">
+          <span class="kpi-icon" aria-hidden="true">🔧</span>
+          <span class="kpi-tag tag-service">H-5</span>
+        </div>
+        <div class="kpi-main-row">
+          <strong class="kpi-number" id="statService">0</strong>
+          <div class="kpi-text-group">
+            <span class="kpi-label">Next Service</span>
+            <span class="kpi-sub">5 hari sebelum servis</span>
+          </div>
         </div>
       </article>
     </section>
@@ -188,12 +222,13 @@
         </div>
       </div>
 
-      <!-- Filter Pills for 3 Types -->
+      <!-- Filter Pills for 4 Types -->
       <div class="type-filter-bar">
-        <button type="button" class="filter-chip active" data-type-filter="ALL">Semua Tipe (3 Pengingat)</button>
+        <button type="button" class="filter-chip active" data-type-filter="ALL">Semua Tipe (4 Pengingat)</button>
         <button type="button" class="filter-chip chip-bday" data-type-filter="ULTAH">🎂 Ulang Tahun (Hari H)</button>
         <button type="button" class="filter-chip chip-samsat" data-type-filter="SAMSAT">🚗 Samsat Kendaraan (H-3)</button>
         <button type="button" class="filter-chip chip-asuransi" data-type-filter="ASURANSI">🛡️ Asuransi Mobil (H-3)</button>
+        <button type="button" class="filter-chip chip-service" data-type-filter="SERVICE">🔧 Next Service (H-5)</button>
       </div>
 
       <div id="todayRemindersContainer" class="reminder-cards-grid">
@@ -246,6 +281,7 @@
               <th>🎂 Tgl Ulang Tahun</th>
               <th>🚗 Tgl Habis Samsat</th>
               <th>🛡️ Expired Asuransi</th>
+              <th>🔧 Next Service (H-5)</th>
               <th>👨‍💼 Sales PIC</th>
               <th>🔧 Service Advisor (SA)</th>
               <th>Status Pengingat</th>
@@ -386,14 +422,18 @@
               </div>
             </div>
 
-            <div class="three-col-grid mt-16">
+            <div class="four-col-grid mt-16">
               <div class="form-group">
-                <label for="inputSamsatDays">Pengingat Samsat (H minus berapa hari?)</label>
+                <label for="inputSamsatDays">Pengingat Samsat (H- Berapa Hari?)</label>
                 <input type="number" id="inputSamsatDays" name="samsatAdvanceDays" class="input-control" min="1" max="30" value="3" required>
               </div>
               <div class="form-group">
-                <label for="inputAsuransiDays">Pengingat Asuransi (H minus berapa hari?)</label>
+                <label for="inputAsuransiDays">Pengingat Asuransi (H- Berapa Hari?)</label>
                 <input type="number" id="inputAsuransiDays" name="asuransiAdvanceDays" class="input-control" min="1" max="30" value="3" required>
+              </div>
+              <div class="form-group">
+                <label for="inputServiceDays">Pengingat Next Service (H- Berapa Hari?)</label>
+                <input type="number" id="inputServiceDays" name="serviceAdvanceDays" class="input-control" min="1" max="30" value="5" required>
               </div>
               <div class="form-group">
                 <label for="inputDelaySec">Jeda Aman Antar Pesan WA (Detik)</label>
@@ -410,9 +450,9 @@
 
         <div class="settings-card">
           <fieldset class="form-fieldset">
-            <legend>✍️ Kustomisasi Template Pesan (3 Tipe Pengingat: Pelanggan &amp; Sales/SA)</legend>
+            <legend>✍️ Kustomisasi Template Pesan (4 Tipe Pengingat: Pelanggan &amp; Sales/SA)</legend>
             <p class="card-help">
-              Variabel otomatis yang bisa digunakan: <code>{nama_pelanggan}</code>, <code>{wa_pelanggan}</code>, <code>{tipe_mobil}</code>, <code>{no_polisi}</code>, <code>{tgl_samsat_indo}</code>, <code>{tgl_asuransi_indo}</code>, <code>{nama_sales}</code>, <code>{wa_sales}</code>, <code>{nama_sa}</code>, <code>{wa_sa}</code>, <code>{nama_pic}</code>, <code>{peran_pic}</code>.
+              Variabel otomatis yang bisa digunakan: <code>{nama_pelanggan}</code>, <code>{wa_pelanggan}</code>, <code>{tipe_mobil}</code>, <code>{no_polisi}</code>, <code>{tgl_samsat_indo}</code>, <code>{tgl_asuransi_indo}</code>, <code>{tgl_service_indo}</code>, <code>{nama_sales}</code>, <code>{wa_sales}</code>, <code>{nama_sa}</code>, <code>{wa_sa}</code>, <code>{nama_pic}</code>, <code>{peran_pic}</code>.
             </p>
 
             <div class="two-col-grid">
@@ -442,6 +482,15 @@
                 <label for="tplAsuransiStaff">🛡️ 3B. Notifikasi H-3 Asuransi (Ke Sales &amp; SA)</label>
                 <textarea id="tplAsuransiStaff" name="asuransiStaff" rows="8" class="input-control"></textarea>
               </div>
+
+              <div class="form-group">
+                <label for="tplServiceCustomer">🔧 4A. Pengingat H-5 Next Service (Ke Pelanggan)</label>
+                <textarea id="tplServiceCustomer" name="serviceCustomer" rows="8" class="input-control"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="tplServiceStaff">🔧 4B. Notifikasi H-5 Next Service (Ke Sales &amp; SA)</label>
+                <textarea id="tplServiceStaff" name="serviceStaff" rows="8" class="input-control"></textarea>
+              </div>
             </div>
 
             <div class="btn-row mt-16">
@@ -470,7 +519,7 @@
   <footer class="site-footer">
     <div class="footer-inner">
       <div>
-        <strong>AGUNG TOYOTA GIANYAR</strong> — Sistem Pengingat Ulang Tahun, Samsat &amp; Asuransi Kendaraan Otomatis
+        <strong>AGUNG TOYOTA GIANYAR</strong> — Sistem Pengingat Ulang Tahun, Samsat, Asuransi &amp; Next Service Otomatis
       </div>
       <div class="footer-credit">
         Crafted with precision • <span class="credit-highlight">Design by MDP</span>
@@ -493,7 +542,7 @@
             <label for="inputExcelFile" class="dropzone-label">
               <span class="dropzone-icon">📊</span>
               <strong id="selectedFileName">Klik di sini untuk memilih file Excel (.xlsx)</strong>
-              <span>Pastikan terdapat kolom: Nama Pelanggan, No. WA Pelanggan, Email Pelanggan, Tipe Mobil, No. Polisi, Tgl Ulang Tahun, Tgl Habis Samsat, Tgl Expired Asuransi, beserta data Sales &amp; SA.</span>
+              <span>Pastikan terdapat kolom: Nama Pelanggan, No. WA Pelanggan, Email Pelanggan, Tipe Mobil, No. Polisi, Tgl Ulang Tahun, Tgl Habis Samsat, Tgl Expired Asuransi, Tgl Next Service, beserta data Sales &amp; SA.</span>
             </label>
           </div>
 
@@ -551,18 +600,22 @@
             </div>
           </div>
 
-          <div class="three-col-grid mt-12">
+          <div class="four-col-grid mt-12">
             <div class="form-group">
-              <label for="custUltah">🎂 Tanggal Ulang Tahun</label>
+              <label for="custUltah">🎂 Tgl Ulang Tahun (Hari H)</label>
               <input type="date" id="custUltah" name="tglUlangTahun" class="input-control">
             </div>
             <div class="form-group">
-              <label for="custSamsat">🚗 Tanggal Habis Samsat</label>
+              <label for="custSamsat">🚗 Tgl Habis Samsat (H-3)</label>
               <input type="date" id="custSamsat" name="tglSamsat" class="input-control">
             </div>
             <div class="form-group">
-              <label for="custAsuransi">🛡️ Tanggal Expired Asuransi</label>
+              <label for="custAsuransi">🛡️ Expired Asuransi (H-3)</label>
               <input type="date" id="custAsuransi" name="tglAsuransi" class="input-control">
+            </div>
+            <div class="form-group">
+              <label for="custService">🔧 Tgl Next Service (H-5)</label>
+              <input type="date" id="custService" name="tglService" class="input-control">
             </div>
           </div>
         </fieldset>
