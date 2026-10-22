@@ -38,15 +38,23 @@ const HEADERS = [
   'Status Log Pengiriman'
 ];
 
-function getOrCreateCustomerSheet() {
+function getOrCreateCustomerSheet(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (sheetName) {
+    const s = ss.getSheetByName(sheetName);
+    if (s) return s;
+  }
   let sheet = ss.getSheetByName('Data Pelanggan');
   if (!sheet) {
-    sheet = ss.getSheets()[0];
-    sheet.setName('Data Pelanggan');
+    sheet = ss.getActiveSheet() || ss.getSheets()[0];
+    if (sheet) {
+      sheet.setName('Data Pelanggan');
+    } else {
+      sheet = ss.insertSheet('Data Pelanggan');
+    }
   }
   
-  // Pastikan header ada di baris 1
+  // Pastikan header ada di baris 1 jika sheet baru kosong
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
     const headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
@@ -78,8 +86,8 @@ function cleanPhoneVal(val) {
   return digits;
 }
 
-function readAllCustomersFromSheet() {
-  const sheet = getOrCreateCustomerSheet();
+function readAllCustomersFromSheet(sheetName) {
+  const sheet = getOrCreateCustomerSheet(sheetName);
   const lastRow = sheet.getLastRow();
   const lastCol = Math.max(sheet.getLastColumn(), HEADERS.length);
   if (lastRow <= 1) return [];
@@ -142,8 +150,8 @@ function readAllCustomersFromSheet() {
   return customers;
 }
 
-function syncAllCustomersToSheet(customers) {
-  const sheet = getOrCreateCustomerSheet();
+function syncAllCustomersToSheet(customers, sheetName) {
+  const sheet = getOrCreateCustomerSheet(sheetName);
 
   // PROTEKSI KEAMANAN TINGKAT TINGGI:
   // Jangan pernah menghapus baris spreadsheet jika array data kosong atau tidak valid!
@@ -178,12 +186,12 @@ function syncAllCustomersToSheet(customers) {
   ]);
 
   sheet.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
-  return { success: true, count: rows.length };
+  return { success: true, count: rows.length, sheet: sheet.getName() };
 }
 
-function upsertCustomerToSheet(cust) {
-  const sheet = getOrCreateCustomerSheet();
-  const customers = readAllCustomersFromSheet();
+function upsertCustomerToSheet(cust, sheetName) {
+  const sheet = getOrCreateCustomerSheet(sheetName);
+  const customers = readAllCustomersFromSheet(sheetName);
   const targetId = Number(cust.id);
   const targetNopol = String(cust.noPolisi || '').toUpperCase().trim();
 
@@ -202,13 +210,13 @@ function upsertCustomerToSheet(cust) {
     customers.push({ ...cust, id: cust.id ? Number(cust.id) : nextId });
   }
 
-  syncAllCustomersToSheet(customers);
-  return { success: true, count: customers.length };
+  syncAllCustomersToSheet(customers, sheetName);
+  return { success: true, count: customers.length, sheet: sheet.getName() };
 }
 
-function deleteCustomerFromSheet(id, nopol) {
-  const sheet = getOrCreateCustomerSheet();
-  let customers = readAllCustomersFromSheet();
+function deleteCustomerFromSheet(id, nopol, sheetName) {
+  const sheet = getOrCreateCustomerSheet(sheetName);
+  let customers = readAllCustomersFromSheet(sheetName);
   const numId = Number(id);
   const cleanNop = String(nopol || '').toUpperCase().trim();
 
@@ -218,8 +226,8 @@ function deleteCustomerFromSheet(id, nopol) {
     return true;
   });
 
-  syncAllCustomersToSheet(customers);
-  return { success: true, count: customers.length };
+  syncAllCustomersToSheet(customers, sheetName);
+  return { success: true, count: customers.length, sheet: sheet.getName() };
 }
 
 // ============================================================================
@@ -228,15 +236,30 @@ function deleteCustomerFromSheet(id, nopol) {
 
 function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || 'get_customers';
+  const requestedSheet = (e && e.parameter && (e.parameter.sheet || e.parameter.tab)) || '';
   
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const allSheets = ss.getSheets().map(s => ({
+    name: s.getName(),
+    rows: s.getLastRow()
+  }));
+
   if (action === 'ping') {
-    return createJsonResponse({ success: true, message: 'Agung Toyota Gianyar Sheet API Ready', timestamp: new Date().toISOString() });
+    return createJsonResponse({
+      success: true,
+      message: 'Agung Toyota Gianyar Sheet API Ready',
+      sheets: allSheets,
+      timestamp: new Date().toISOString()
+    });
   }
 
-  const customers = readAllCustomersFromSheet();
+  const customers = readAllCustomersFromSheet(requestedSheet);
+  const targetSheet = getOrCreateCustomerSheet(requestedSheet);
   return createJsonResponse({
     success: true,
     action: 'get_customers',
+    sheetName: targetSheet.getName(),
+    availableSheets: allSheets,
     count: customers.length,
     data: customers
   });
@@ -250,28 +273,29 @@ function doPost(e) {
     }
 
     const action = payload.action || 'sync_all';
+    const sheetName = payload.sheet || payload.tab || '';
 
     if (action === 'sync_all' || action === 'save_all') {
       const items = payload.items || payload.customers || [];
-      const res = syncAllCustomersToSheet(items);
+      const res = syncAllCustomersToSheet(items, sheetName);
       return createJsonResponse(res);
     }
 
     if (action === 'upsert_customer' || action === 'add_customer' || action === 'save_customer') {
       const item = payload.customer || payload.item || payload;
-      const res = upsertCustomerToSheet(item);
+      const res = upsertCustomerToSheet(item, sheetName);
       return createJsonResponse(res);
     }
 
     if (action === 'delete_customer' || action === 'remove_customer') {
       const id = payload.id;
       const nopol = payload.noPolisi || payload.nopol;
-      const res = deleteCustomerFromSheet(id, nopol);
+      const res = deleteCustomerFromSheet(id, nopol, sheetName);
       return createJsonResponse(res);
     }
 
     if (action === 'get_customers') {
-      const customers = readAllCustomersFromSheet();
+      const customers = readAllCustomersFromSheet(sheetName);
       return createJsonResponse({ success: true, count: customers.length, data: customers });
     }
 

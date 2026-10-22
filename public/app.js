@@ -163,31 +163,38 @@ async function fetchDashboard(populateForms = false) {
 
 
 function renderHeaderAndStats(data) {
-  document.getElementById('statTotalCustomers').textContent = data.stats.totalCustomers ?? 0;
-  document.getElementById('statBirthday').textContent = data.stats.dueBirthdayToday ?? 0;
-  document.getElementById('statSamsat').textContent = data.stats.dueSamsatH3 ?? 0;
-  document.getElementById('statAsuransi').textContent = data.stats.dueAsuransiH3 ?? 0;
-  const statServiceEl = document.getElementById('statService');
-  if (statServiceEl) statServiceEl.textContent = data.stats.dueServiceH5 ?? 0;
-  document.getElementById('badgePendingToday').textContent = data.stats.totalPendingToday ?? 0;
+  const safeSetText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text ?? '0';
+  };
 
-  const opStart = data.config.operationalStart || '08:00';
-  const opEnd = data.config.operationalEnd || '16:00';
-  const waStart = data.config.waWindowStart || '10:00';
-  const waEnd = data.config.waWindowEnd || '14:00';
+  safeSetText('statTotalCustomers', data.stats?.totalCustomers);
+  safeSetText('statBirthday', data.stats?.dueBirthdayToday);
+  safeSetText('statSamsat', data.stats?.dueSamsatH3);
+  safeSetText('statAsuransi', data.stats?.dueAsuransiH3);
+  safeSetText('statService', data.stats?.dueServiceH5);
+  safeSetText('badgePendingToday', data.stats?.totalPendingToday);
+  safeSetText('summaryCountCustomers', data.stats?.totalCustomers ?? (appState.customers?.length || 0));
 
-  document.getElementById('officeHoursLabel').textContent = `${opStart} – ${opEnd} WITA`;
-  document.getElementById('waWindowLabel').textContent = `${waStart} – ${waEnd} WITA`;
+  // Sync Sidebar Drawer Badges
+  safeSetText('sidebarBadgeCustomers', data.stats?.totalCustomers ?? (appState.customers?.length || 0));
+  safeSetText('sidebarBadgePending', data.stats?.totalPendingToday);
 
-  const officeBadge = document.getElementById('officeStatusBadge');
-  const waBadge = document.getElementById('waWindowBadge');
-  officeBadge.classList.toggle('active-now', Boolean(data.inOperationalHours));
-  waBadge.classList.toggle('active-now', Boolean(data.inWaWindow));
+  const sbWa = document.getElementById('sidebarBadgeWa');
+  if (sbWa) {
+    const isConn = data.waState?.status === 'CONNECTED';
+    sbWa.textContent = isConn ? 'ONLINE' : 'SCAN QR';
+    sbWa.className = isConn ? 'nav-badge badge-emerald' : 'nav-badge badge-amber';
+  }
+
+  const isGsheetConnected = Boolean(data.config?.googleSheetApiUrl || localStorage.getItem('toyota_gsheet_url'));
+  const sbGsheet = document.getElementById('sidebarBadgeGsheet');
+  if (sbGsheet) {
+    sbGsheet.textContent = isGsheetConnected ? '2-Arah ✓' : 'Excel';
+    sbGsheet.className = isGsheetConnected ? 'nav-badge badge-sky' : 'nav-badge badge-amber';
+  }
 
   const gsheetPill = document.getElementById('gsheetStatusPill');
-  const toolbarBadge = document.getElementById('toolbarGSheetBadge');
-  const isGsheetConnected = Boolean(data.config?.googleSheetApiUrl);
-
   if (gsheetPill) {
     if (isGsheetConnected) {
       gsheetPill.className = 'gsheet-pill connected';
@@ -198,37 +205,10 @@ function renderHeaderAndStats(data) {
     }
   }
 
+  const toolbarBadge = document.getElementById('toolbarGSheetBadge');
   if (toolbarBadge) {
-    if (isGsheetConnected) {
-      toolbarBadge.className = 'toolbar-mini-badge connected';
-      toolbarBadge.textContent = '🟢 Google Sheets';
-    } else {
-      toolbarBadge.className = 'toolbar-mini-badge disconnected';
-      toolbarBadge.textContent = '⚪ Excel';
-    }
-  }
-
-  const summaryCountEl = document.getElementById('summaryCountCustomers');
-  if (summaryCountEl) {
-    summaryCountEl.textContent = data.stats.totalCustomers ?? (appState.customers?.length || 0);
-  }
-
-  // Sync Sidebar Drawer Badges
-  const sbCust = document.getElementById('sidebarBadgeCustomers');
-  if (sbCust) sbCust.textContent = data.stats.totalCustomers ?? (appState.customers?.length || 0);
-  const sbPending = document.getElementById('sidebarBadgePending');
-  if (sbPending) sbPending.textContent = data.stats.totalPendingToday ?? 0;
-  const sbWa = document.getElementById('sidebarBadgeWa');
-  if (sbWa) {
-    const isConn = data.waState?.status === 'CONNECTED';
-    sbWa.textContent = isConn ? 'ONLINE' : 'SCAN QR';
-    sbWa.className = isConn ? 'nav-badge badge-emerald' : 'nav-badge badge-amber';
-  }
-  const sbGsheet = document.getElementById('sidebarBadgeGsheet');
-  if (sbGsheet) {
-    sbGsheet.textContent = isGsheetConnected ? '2-Arah ✓' : 'Excel';
-    sbGsheet.className = isConnGsheet => isConnGsheet ? 'nav-badge badge-sky' : 'nav-badge badge-amber';
-    sbGsheet.className = isGsheetConnected ? 'nav-badge badge-sky' : 'nav-badge badge-amber';
+    toolbarBadge.className = isGsheetConnected ? 'toolbar-mini-badge connected' : 'toolbar-mini-badge disconnected';
+    toolbarBadge.textContent = isGsheetConnected ? '🟢 Google Sheets' : '⚪ Excel';
   }
 }
 
@@ -525,10 +505,14 @@ function renderWaAndSmtpStatus() {
   }
 
   if (appState.waState.status === 'CONNECTED') {
-    waPill.textContent = `✓ Terhubung (${appState.waState.connectedNumber || 'WhatsApp Aktif'})`;
-    waPill.className = 'status-pill connected';
-    waDesc.innerHTML = `✅ <strong>WhatsApp Kantor Terhubung!</strong> (${escapeHtml(appState.waState.connectedName || '')}). Siap mengirim pesan otomatis pada pukul <strong>${escapeHtml(appState.config.waWindowStart || '10:00')} – ${escapeHtml(appState.config.waWindowEnd || '14:00')} WITA</strong>.`;
-    qrImg.classList.add('hidden');
+    if (waPill) {
+      waPill.textContent = `✓ Terhubung (${appState.waState.connectedNumber || 'WhatsApp Aktif'})`;
+      waPill.className = 'status-pill connected';
+    }
+    if (waDesc) {
+      waDesc.innerHTML = `✅ <strong>WhatsApp Kantor Terhubung!</strong> (${escapeHtml(appState.waState.connectedName || '')}). Siap mengirim pesan otomatis pada pukul <strong>${escapeHtml(appState.config.waWindowStart || '10:00')} – ${escapeHtml(appState.config.waWindowEnd || '14:00')} WITA</strong>.`;
+    }
+    if (qrImg) qrImg.classList.add('hidden');
 
     if (mainWaChip) {
       mainWaChip.textContent = `📱 WA Terhubung: ${appState.waState.connectedNumber || 'Aktif'}`;
@@ -538,14 +522,20 @@ function renderWaAndSmtpStatus() {
     if (mainConnBox) mainConnBox.classList.remove('hidden');
     if (mainConnNum) mainConnNum.textContent = `📱 WA: ${appState.waState.connectedName || ''} (${appState.waState.connectedNumber || ''})`;
   } else if (appState.waState.status === 'QR_READY' && appState.waState.qrDataUrl) {
-    waPill.textContent = '📲 Menunggu Scan QR Code';
-    waPill.className = 'status-pill';
-    waDesc.innerHTML = 'Silakan buka WhatsApp di HP Kantor &rarr; <strong>Perangkat Tertaut</strong> &rarr; <strong>Tautkan Perangkat</strong> lalu scan QR di bawah ini:';
-    qrImg.src = appState.waState.qrDataUrl;
-    qrImg.classList.remove('hidden');
+    if (waPill) {
+      waPill.textContent = '📲 Menunggu Scan QR Code';
+      waPill.className = 'status-pill';
+    }
+    if (waDesc) {
+      waDesc.innerHTML = 'Silakan buka WhatsApp di HP Kantor &rarr; <strong>Perangkat Tertaut</strong> &rarr; <strong>Tautkan Perangkat</strong> lalu scan QR di bawah ini:';
+    }
+    if (qrImg) {
+      qrImg.src = appState.waState.qrDataUrl;
+      qrImg.classList.remove('hidden');
+    }
 
     if (mainWaChip) {
-      mainWaChip.textContent = '📲 WA Belum Tertaut — Silakan Scan QR di Kanan';
+      mainWaChip.textContent = '📲 WA Belum Tertaut — Silakan Scan QR di Tab Auto-Pilot';
       mainWaChip.style.background = '#dc2626';
     }
     if (mainNotConn) mainNotConn.classList.remove('hidden');
@@ -556,10 +546,14 @@ function renderWaAndSmtpStatus() {
     }
     if (mainQrLoading) mainQrLoading.classList.add('hidden');
   } else if (appState.waState.status === 'CONNECTING') {
-    waPill.textContent = '⏳ Menyiapkan QR Code...';
-    waPill.className = 'status-pill';
-    waDesc.textContent = 'Sedang menghubungi server WhatsApp Web, mohon tunggu beberapa detik...';
-    qrImg.classList.add('hidden');
+    if (waPill) {
+      waPill.textContent = '⏳ Menyiapkan QR Code...';
+      waPill.className = 'status-pill';
+    }
+    if (waDesc) {
+      waDesc.textContent = 'Sedang menghubungi server WhatsApp Web, mohon tunggu beberapa detik...';
+    }
+    if (qrImg) qrImg.classList.add('hidden');
 
     if (mainWaChip) mainWaChip.textContent = '⏳ Menyiapkan QR WhatsApp...';
     if (mainNotConn) mainNotConn.classList.remove('hidden');
@@ -567,18 +561,24 @@ function renderWaAndSmtpStatus() {
     if (mainQrImg) mainQrImg.classList.add('hidden');
     if (mainQrLoading) mainQrLoading.classList.remove('hidden');
   } else {
-    waPill.textContent = 'Siap Scan QR';
-    waPill.className = 'status-pill';
-    waDesc.innerHTML = 'Klik tombol <strong>"Tampilkan / Hubungkan QR WhatsApp"</strong> di bawah untuk menautkan WhatsApp kantor secara gratis.';
-    qrImg.classList.add('hidden');
+    if (waPill) {
+      waPill.textContent = 'Siap Scan QR';
+      waPill.className = 'status-pill';
+    }
+    if (waDesc) {
+      waDesc.innerHTML = 'Klik tombol <strong>"Tampilkan / Hubungkan QR WhatsApp"</strong> di bawah untuk menautkan WhatsApp kantor secara gratis.';
+    }
+    if (qrImg) qrImg.classList.add('hidden');
 
     if (mainWaChip) mainWaChip.textContent = '📲 Menunggu Koneksi QR';
   }
 
   const smtpPill = document.getElementById('smtpConnectionPill');
-  if (appState.config.smtp?.enabled && appState.config.smtp?.user && appState.config.smtp?.pass) {
-    smtpPill.textContent = `✓ Gmail Aktif (${appState.config.smtp.user})`;
-    smtpPill.className = 'status-pill connected';
+  if (appState.config?.smtp?.enabled && appState.config?.smtp?.user && appState.config?.smtp?.pass) {
+    if (smtpPill) {
+      smtpPill.textContent = `✓ Gmail Aktif (${appState.config.smtp.user})`;
+      smtpPill.className = 'status-pill connected';
+    }
     if (mainGmailChip) {
       mainGmailChip.textContent = `✉️ Gmail Terhubung: ${appState.config.smtp.user}`;
       mainGmailChip.style.background = '#16a34a';
@@ -587,8 +587,10 @@ function renderWaAndSmtpStatus() {
       mainGmailAcc.textContent = `✉️ Gmail: ${appState.config.smtp.user}`;
     }
   } else {
-    smtpPill.textContent = 'Mode Simulasi Email';
-    smtpPill.className = 'status-pill';
+    if (smtpPill) {
+      smtpPill.textContent = 'Mode Simulasi Email';
+      smtpPill.className = 'status-pill';
+    }
     if (mainGmailChip) {
       mainGmailChip.textContent = '✉️ Gmail Belum Diatur';
       mainGmailChip.style.background = '#64748b';
@@ -601,6 +603,7 @@ function renderWaAndSmtpStatus() {
 
 function renderLogs() {
   const container = document.getElementById('logsContainer');
+  if (!container) return;
   if (!appState.logs || appState.logs.length === 0) {
     container.innerHTML = `
       <div class="settings-card" style="text-align:center;color:var(--slate-600);">
@@ -639,6 +642,16 @@ function renderLogs() {
 }
 
 function populateConfigForms(cfg) {
+  if (!cfg) return;
+  const safeSetVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val ?? '';
+  };
+  const safeSetChecked = (id, bool) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = Boolean(bool);
+  };
+
   const quickPhoneInput = document.getElementById('inputQuickTestPhone');
   const quickEmailInput = document.getElementById('inputQuickTestEmail');
   if (quickPhoneInput && !quickPhoneInput.value && appState.customers[0]?.waPelanggan) {
@@ -648,10 +661,7 @@ function populateConfigForms(cfg) {
     quickEmailInput.value = appState.customers[0]?.emailPelanggan || cfg.smtp?.user || '';
   }
 
-  const gsheetInput = document.getElementById('inputGoogleSheetApiUrl');
-  if (gsheetInput) {
-    gsheetInput.value = cfg.googleSheetApiUrl || cfg.googleSheetCsvUrl || '';
-  }
+  safeSetVal('inputGoogleSheetApiUrl', cfg.googleSheetApiUrl || cfg.googleSheetCsvUrl || '');
   const gsheetPill = document.getElementById('gsheetStatusPill');
   if (gsheetPill) {
     if (cfg.googleSheetApiUrl) {
@@ -664,39 +674,36 @@ function populateConfigForms(cfg) {
   }
 
   // WA Gateway
-  document.getElementById('chkWaGatewayEnabled').checked = Boolean(cfg.waGateway?.enabled);
-  document.getElementById('inputWaGatewayUrl').value = cfg.waGateway?.url || 'https://api.fonnte.com/send';
-  document.getElementById('inputWaGatewayToken').value = cfg.waGateway?.token || '';
+  safeSetChecked('chkWaGatewayEnabled', cfg.waGateway?.enabled);
+  safeSetVal('inputWaGatewayUrl', cfg.waGateway?.url || 'https://api.fonnte.com/send');
+  safeSetVal('inputWaGatewayToken', cfg.waGateway?.token || '');
 
   // SMTP
-  document.getElementById('chkSmtpEnabled').checked = Boolean(cfg.smtp?.enabled);
-  document.getElementById('inputSmtpFromName').value = cfg.smtp?.fromName || 'Agung Toyota Gianyar - Customer Care';
-  document.getElementById('inputSmtpUser').value = cfg.smtp?.user || '';
-  document.getElementById('inputSmtpPass').value = cfg.smtp?.pass || '';
+  safeSetChecked('chkSmtpEnabled', cfg.smtp?.enabled);
+  safeSetVal('inputSmtpFromName', cfg.smtp?.fromName || 'Agung Toyota Gianyar - Customer Care');
+  safeSetVal('inputSmtpUser', cfg.smtp?.user || '');
+  safeSetVal('inputSmtpPass', cfg.smtp?.pass || '');
 
   // Schedule & Templates
-  document.getElementById('inputOpStart').value = cfg.operationalStart || '08:00';
-  document.getElementById('inputOpEnd').value = cfg.operationalEnd || '16:00';
-  document.getElementById('inputWaStart').value = cfg.waWindowStart || '10:00';
-  document.getElementById('inputWaEnd').value = cfg.waWindowEnd || '14:00';
-  document.getElementById('inputSamsatDays').value = cfg.samsatAdvanceDays ?? 3;
-  document.getElementById('inputAsuransiDays').value = cfg.asuransiAdvanceDays ?? 3;
-  const srvDaysEl = document.getElementById('inputServiceDays');
-  if (srvDaysEl) srvDaysEl.value = cfg.serviceAdvanceDays ?? 5;
-  document.getElementById('inputDelaySec').value = cfg.delaySecondsBetweenMessages ?? 8;
-  document.getElementById('chkAutoSendEnabled').checked = cfg.autoSendEnabled !== false;
+  safeSetVal('inputOpStart', cfg.operationalStart || '08:00');
+  safeSetVal('inputOpEnd', cfg.operationalEnd || '16:00');
+  safeSetVal('inputWaStart', cfg.waWindowStart || '10:00');
+  safeSetVal('inputWaEnd', cfg.waWindowEnd || '14:00');
+  safeSetVal('inputSamsatDays', cfg.samsatAdvanceDays ?? 3);
+  safeSetVal('inputAsuransiDays', cfg.asuransiAdvanceDays ?? 3);
+  safeSetVal('inputServiceDays', cfg.serviceAdvanceDays ?? 5);
+  safeSetVal('inputDelaySec', cfg.delaySecondsBetweenMessages ?? 8);
+  safeSetChecked('chkAutoSendEnabled', cfg.autoSendEnabled !== false);
 
   if (cfg.templates) {
-    document.getElementById('tplBdayCustomer').value = cfg.templates.birthdayCustomer || '';
-    document.getElementById('tplBdayStaff').value = cfg.templates.birthdayStaff || '';
-    document.getElementById('tplSamsatCustomer').value = cfg.templates.samsatCustomer || '';
-    document.getElementById('tplSamsatStaff').value = cfg.templates.samsatStaff || '';
-    document.getElementById('tplAsuransiCustomer').value = cfg.templates.asuransiCustomer || '';
-    document.getElementById('tplAsuransiStaff').value = cfg.templates.asuransiStaff || '';
-    const tplSrvCust = document.getElementById('tplServiceCustomer');
-    const tplSrvStaff = document.getElementById('tplServiceStaff');
-    if (tplSrvCust) tplSrvCust.value = cfg.templates.serviceCustomer || '';
-    if (tplSrvStaff) tplSrvStaff.value = cfg.templates.serviceStaff || '';
+    safeSetVal('tplBdayCustomer', cfg.templates.birthdayCustomer || '');
+    safeSetVal('tplBdayStaff', cfg.templates.birthdayStaff || '');
+    safeSetVal('tplSamsatCustomer', cfg.templates.samsatCustomer || '');
+    safeSetVal('tplSamsatStaff', cfg.templates.samsatStaff || '');
+    safeSetVal('tplAsuransiCustomer', cfg.templates.asuransiCustomer || '');
+    safeSetVal('tplAsuransiStaff', cfg.templates.asuransiStaff || '');
+    safeSetVal('tplServiceCustomer', cfg.templates.serviceCustomer || '');
+    safeSetVal('tplServiceStaff', cfg.templates.serviceStaff || '');
   }
 }
 
@@ -961,14 +968,15 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dialogUploadExcel').showModal();
     });
   }
-  document.getElementById('btnSendAllPending').addEventListener('click', triggerSendAllToday);
+  const btnSendAll = document.getElementById('btnSendAllPending');
+  if (btnSendAll) btnSendAll.addEventListener('click', triggerSendAllToday);
 
   // Quick Test Direct WA + Email Send Form on Front Page
   const formQuickTestWa = document.getElementById('formQuickTestWa');
   if (formQuickTestWa) {
     formQuickTestWa.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const phone = document.getElementById('inputQuickTestPhone').value.trim();
+      const phone = (document.getElementById('inputQuickTestPhone')?.value || '').trim();
       const email = (document.getElementById('inputQuickTestEmail')?.value || '').trim();
       showToast(`📲✉️ Mengirim tes otomatis ke WA (${phone || '-'}) & Gmail (${email || '-'})...`);
       const res = await fetch('/api/wa/test-direct', {
@@ -1012,11 +1020,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Reset Today's Sent Flags
-  document.getElementById('btnResetTodayFlags').addEventListener('click', async () => {
-    await fetch('/api/logs/clear-today-flags', { method: 'POST' });
-    showToast('🔄 Status pengiriman hari ini di-reset. Siap diuji kirim ulang!');
-    fetchDashboard(false);
-  });
+  const btnResetFlags = document.getElementById('btnResetTodayFlags');
+  if (btnResetFlags) {
+    btnResetFlags.addEventListener('click', async () => {
+      await fetch('/api/logs/clear-today-flags', { method: 'POST' });
+      showToast('🔄 Status pengiriman hari ini di-reset. Siap diuji kirim ulang!');
+      fetchDashboard(false);
+    });
+  }
 
   // Filter Chips for 4 Reminder Types
   document.querySelectorAll('[data-type-filter]').forEach((chip) => {
@@ -1043,128 +1054,160 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (action === 'edit-customer') {
       const cust = appState.customers.find(c => Number(c.id) === id);
       if (!cust) return;
-      document.getElementById('titleCustomerModal').textContent = `✏️ Edit Pelanggan: ${cust.namaPelanggan}`;
-      document.getElementById('custId').value = cust.id;
-      document.getElementById('custNama').value = cust.namaPelanggan || '';
-      document.getElementById('custWa').value = cust.waPelanggan || '';
-      document.getElementById('custEmail').value = cust.emailPelanggan || '';
-      document.getElementById('custMobil').value = cust.tipeMobil || '';
-      document.getElementById('custNopol').value = cust.noPolisi || '';
-      document.getElementById('custUltah').value = cust.tglUlangTahun || '';
-      document.getElementById('custSamsat').value = cust.tglSamsat || '';
-      document.getElementById('custAsuransi').value = cust.tglAsuransi || '';
-      const srvInput = document.getElementById('custService');
-      if (srvInput) srvInput.value = cust.tglService || '';
-      document.getElementById('custNamaSales').value = cust.namaSales || '';
-      document.getElementById('custWaSales').value = cust.waSales || '';
-      document.getElementById('custEmailSales').value = cust.emailSales || '';
-      document.getElementById('custNamaSA').value = cust.namaSA || '';
-      document.getElementById('custWaSA').value = cust.waSA || '';
-      document.getElementById('custEmailSA').value = cust.emailSA || '';
-      document.getElementById('dialogCustomerForm').showModal();
+      const titleEl = document.getElementById('titleCustomerModal');
+      if (titleEl) titleEl.textContent = `✏️ Edit Pelanggan: ${cust.namaPelanggan}`;
+      const safeVal = (elemId, val) => {
+        const el = document.getElementById(elemId);
+        if (el) el.value = val ?? '';
+      };
+      safeVal('custId', cust.id);
+      safeVal('custNama', cust.namaPelanggan);
+      safeVal('custWa', cust.waPelanggan);
+      safeVal('custEmail', cust.emailPelanggan);
+      safeVal('custMobil', cust.tipeMobil);
+      safeVal('custNopol', cust.noPolisi);
+      safeVal('custUltah', cust.tglUlangTahun);
+      safeVal('custSamsat', cust.tglSamsat);
+      safeVal('custAsuransi', cust.tglAsuransi);
+      safeVal('custService', cust.tglService);
+      safeVal('custNamaSales', cust.namaSales);
+      safeVal('custWaSales', cust.waSales);
+      safeVal('custEmailSales', cust.emailSales);
+      safeVal('custNamaSA', cust.namaSA);
+      safeVal('custWaSA', cust.waSA);
+      safeVal('custEmailSA', cust.emailSA);
+      document.getElementById('dialogCustomerForm')?.showModal();
     } else if (action === 'delete-customer') {
-      if (!confirm('Hapus baris pelanggan ini dari file Excel?')) return;
+      if (!confirm('Hapus baris pelanggan ini dari file Excel & Google Spreadsheet?')) return;
       await fetch(`/api/customers/${id}`, { method: 'DELETE' });
-      showToast('🗑️ Data pelanggan dihapus dari Excel.');
+      showToast('🗑️ Data pelanggan dihapus dari Excel & Google Spreadsheet.');
       fetchDashboard(false);
     }
   });
 
   // Confirm Send inside Preview Modal
-  document.getElementById('btnConfirmSendFromPreview').addEventListener('click', () => {
-    if (!appState.activePreviewTarget) return;
-    document.getElementById('dialogPreviewMessage').close();
-    triggerSingleSend(appState.activePreviewTarget.customerId, appState.activePreviewTarget.reminderType);
-  });
+  const btnConfirmSend = document.getElementById('btnConfirmSendFromPreview');
+  if (btnConfirmSend) {
+    btnConfirmSend.addEventListener('click', () => {
+      if (!appState.activePreviewTarget) return;
+      document.getElementById('dialogPreviewMessage')?.close();
+      triggerSingleSend(appState.activePreviewTarget.customerId, appState.activePreviewTarget.reminderType);
+    });
+  }
 
   // Search Input
-  document.getElementById('searchCustomerInput').addEventListener('input', (e) => {
-    appState.searchQuery = e.target.value;
-    renderCustomerTable();
-  });
+  const searchInput = document.getElementById('searchCustomerInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      appState.searchQuery = e.target.value;
+      renderCustomerTable();
+    });
+  }
 
   // Open Upload Excel Modal
-  document.getElementById('btnOpenExcelModal').addEventListener('click', () => {
-    document.getElementById('dialogUploadExcel').showModal();
-  });
+  const btnOpenExcel = document.getElementById('btnOpenExcelModal');
+  if (btnOpenExcel) {
+    btnOpenExcel.addEventListener('click', () => {
+      document.getElementById('dialogUploadExcel')?.showModal();
+    });
+  }
 
   // File Input Change label update
   const fileInput = document.getElementById('inputExcelFile');
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
-    document.getElementById('selectedFileName').textContent = file
-      ? `✅ File dipilih: ${file.name}`
-      : 'Klik di sini untuk memilih file Excel (.xlsx)';
-  });
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      const lbl = document.getElementById('selectedFileName');
+      if (lbl) {
+        lbl.textContent = file
+          ? `✅ File dipilih: ${file.name}`
+          : 'Klik di sini untuk memilih file Excel (.xlsx)';
+      }
+    });
+  }
 
   // Handle Upload Excel Submit
-  document.getElementById('formUploadExcel').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const file = fileInput.files[0];
-    if (!file) {
-      showToast('Pilih file Excel (.xlsx) terlebih dahulu');
-      return;
-    }
-    const mode = document.getElementById('selectUploadMode').value;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64Data = reader.result.split(',')[1];
-      const res = await fetch('/api/excel/upload', {
+  const formUpload = document.getElementById('formUploadExcel');
+  if (formUpload && fileInput) {
+    formUpload.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = fileInput.files[0];
+      if (!file) {
+        showToast('Pilih file Excel (.xlsx) terlebih dahulu');
+        return;
+      }
+      const mode = document.getElementById('selectUploadMode')?.value || 'replace';
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result.split(',')[1];
+        const res = await fetch('/api/excel/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64Data, mode })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showToast(`❌ Gagal upload Excel: ${data.error}`);
+          return;
+        }
+        document.getElementById('dialogUploadExcel')?.close();
+        showToast(`✅ Berhasil mengimpor ${data.importedCount} pelanggan dari Excel!`);
+        fetchDashboard(false);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Open Add Customer Modal
+  const btnOpenAdd = document.getElementById('btnOpenAddCustomer');
+  if (btnOpenAdd) {
+    btnOpenAdd.addEventListener('click', () => {
+      document.getElementById('formCustomerData')?.reset();
+      const custId = document.getElementById('custId');
+      if (custId) custId.value = '';
+      const titleModal = document.getElementById('titleCustomerModal');
+      if (titleModal) titleModal.textContent = '➕ Tambah Data Pelanggan Baru ke Excel';
+      document.getElementById('dialogCustomerForm')?.showModal();
+    });
+  }
+
+  // Save Customer Form
+  const formCust = document.getElementById('formCustomerData');
+  if (formCust) {
+    formCust.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = Object.fromEntries(fd.entries());
+      const res = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64Data, mode })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        showToast(`❌ Gagal upload Excel: ${data.error}`);
+        showToast(`❌ Gagal menyimpan: ${data.error}`);
         return;
       }
-      document.getElementById('dialogUploadExcel').close();
-      showToast(`✅ Berhasil mengimpor ${data.importedCount} pelanggan dari Excel!`);
+      document.getElementById('dialogCustomerForm')?.close();
+      if (data.autoTriggeredCount > 0) {
+        showToast(`✅ Data disimpan & sedang mengirim ${data.autoTriggeredCount} pengingat otomatis ke WA & Email!`);
+      } else {
+        showToast('✅ Data disimpan! Klik tombol "🚀 Kirim" pada baris pelanggan jika ingin langsung tes kirim WA/Email.');
+      }
       fetchDashboard(false);
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // Open Add Customer Modal
-  document.getElementById('btnOpenAddCustomer').addEventListener('click', () => {
-    document.getElementById('formCustomerData').reset();
-    document.getElementById('custId').value = '';
-    document.getElementById('titleCustomerModal').textContent = '➕ Tambah Data Pelanggan Baru ke Excel';
-    document.getElementById('dialogCustomerForm').showModal();
-  });
-
-  // Save Customer Form
-  document.getElementById('formCustomerData').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const payload = Object.fromEntries(fd.entries());
-    const res = await fetch('/api/customers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      setTimeout(() => fetchDashboard(false), 3500);
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      showToast(`❌ Gagal menyimpan: ${data.error}`);
-      return;
-    }
-    document.getElementById('dialogCustomerForm').close();
-    if (data.autoTriggeredCount > 0) {
-      showToast(`✅ Data disimpan & sedang mengirim ${data.autoTriggeredCount} pengingat otomatis ke WA & Email!`);
-    } else {
-      showToast('✅ Data disimpan! Klik tombol "🚀 Kirim" pada baris pelanggan jika ingin langsung tes kirim WA/Email.');
-    }
-    fetchDashboard(false);
-    setTimeout(() => fetchDashboard(false), 3500);
-  });
+  }
 
   // Reset Sample Data
-  document.getElementById('btnResetSampleData').addEventListener('click', async () => {
-    await fetch('/api/customers/reset-sample', { method: 'POST' });
-    showToast('✨ Contoh data uji coba Agung Toyota Gianyar berhasil dimuat!');
-    fetchDashboard(false);
-  });
+  const btnResetSample = document.getElementById('btnResetSampleData');
+  if (btnResetSample) {
+    btnResetSample.addEventListener('click', async () => {
+      await fetch('/api/customers/reset-sample', { method: 'POST' });
+      showToast('✨ Contoh data uji coba Agung Toyota Gianyar berhasil dimuat!');
+      fetchDashboard(false);
+    });
+  }
 
   // ==========================================================================
   // GOOGLE SPREADSHEET 2-WAY DATABASE INTEGRATION (ACCU CARE PATTERN)
@@ -1348,103 +1391,121 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // WhatsApp QR Connect / Disconnect
-  document.getElementById('btnConnectWa').addEventListener('click', async () => {
-    showToast('📲 Menyiapkan QR Code WhatsApp...');
-    await fetch('/api/wa/connect', { method: 'POST' });
-    setTimeout(() => fetchDashboard(false), 1500);
-  });
+  const btnConnect = document.getElementById('btnConnectWa');
+  if (btnConnect) {
+    btnConnect.addEventListener('click', async () => {
+      showToast('📲 Menyiapkan QR Code WhatsApp...');
+      await fetch('/api/wa/connect', { method: 'POST' });
+      setTimeout(() => fetchDashboard(false), 1500);
+    });
+  }
 
-  document.getElementById('btnDisconnectWa').addEventListener('click', async () => {
-    await fetch('/api/wa/disconnect', { method: 'POST' });
-    showToast('🔌 Sesi WhatsApp telah diputuskan.');
-    fetchDashboard(false);
-  });
+  const btnDisconnect = document.getElementById('btnDisconnectWa');
+  if (btnDisconnect) {
+    btnDisconnect.addEventListener('click', async () => {
+      await fetch('/api/wa/disconnect', { method: 'POST' });
+      showToast('🔌 Sesi WhatsApp telah diputuskan.');
+      fetchDashboard(false);
+    });
+  }
 
   // Password Toggle for Gmail App Password
   const btnTogglePass = document.getElementById('btnToggleSmtpPass');
   const inputPass = document.getElementById('inputSmtpPass');
-  btnTogglePass.addEventListener('click', () => {
-    const isHidden = inputPass.type === 'password';
-    inputPass.type = isHidden ? 'text' : 'password';
-    btnTogglePass.setAttribute('aria-pressed', String(isHidden));
-    btnTogglePass.textContent = isHidden ? '🙈 Sembunyikan' : '👁️ Lihat';
-  });
+  if (btnTogglePass && inputPass) {
+    btnTogglePass.addEventListener('click', () => {
+      const isHidden = inputPass.type === 'password';
+      inputPass.type = isHidden ? 'text' : 'password';
+      btnTogglePass.setAttribute('aria-pressed', String(isHidden));
+      btnTogglePass.textContent = isHidden ? '🙈 Sembunyikan' : '👁️ Lihat';
+    });
+  }
 
   // Save WA Gateway Form
-  document.getElementById('formWaGateway').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const payload = {
-      waGateway: {
-        enabled: document.getElementById('chkWaGatewayEnabled').checked,
-        url: document.getElementById('inputWaGatewayUrl').value.trim(),
-        token: document.getElementById('inputWaGatewayToken').value.trim()
-      }
-    };
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+  const formWaGw = document.getElementById('formWaGateway');
+  if (formWaGw) {
+    formWaGw.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        waGateway: {
+          enabled: Boolean(document.getElementById('chkWaGatewayEnabled')?.checked),
+          url: (document.getElementById('inputWaGatewayUrl')?.value || '').trim(),
+          token: (document.getElementById('inputWaGatewayToken')?.value || '').trim()
+        }
+      };
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      showToast('💾 Pengaturan WA Gateway berhasil disimpan.');
+      fetchDashboard(false);
     });
-    showToast('💾 Pengaturan WA Gateway berhasil disimpan.');
-    fetchDashboard(false);
-  });
+  }
 
   // Save SMTP Form
-  document.getElementById('formSmtpConfig').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const userVal = document.getElementById('inputSmtpUser').value.trim();
-    const passVal = document.getElementById('inputSmtpPass').value.trim();
-    const autoEnable = Boolean(userVal && passVal) || document.getElementById('chkSmtpEnabled').checked;
-    document.getElementById('chkSmtpEnabled').checked = autoEnable;
+  const formSmtp = document.getElementById('formSmtpConfig');
+  if (formSmtp) {
+    formSmtp.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const userVal = (document.getElementById('inputSmtpUser')?.value || '').trim();
+      const passVal = (document.getElementById('inputSmtpPass')?.value || '').trim();
+      const chkSmtp = document.getElementById('chkSmtpEnabled');
+      const autoEnable = Boolean(userVal && passVal) || (chkSmtp ? chkSmtp.checked : false);
+      if (chkSmtp) chkSmtp.checked = autoEnable;
 
-    const payload = {
-      smtp: {
-        enabled: autoEnable,
-        service: 'gmail',
-        fromName: document.getElementById('inputSmtpFromName').value.trim(),
-        user: userVal,
-        pass: passVal
-      }
-    };
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      const payload = {
+        smtp: {
+          enabled: autoEnable,
+          service: 'gmail',
+          fromName: (document.getElementById('inputSmtpFromName')?.value || '').trim(),
+          user: userVal,
+          pass: passVal
+        }
+      };
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      showToast('💾 Pengaturan Gmail berhasil disimpan & diaktifkan!');
+      fetchDashboard(false);
     });
-    showToast('💾 Pengaturan Gmail berhasil disimpan & diaktifkan!');
-    fetchDashboard(false);
-  });
+  }
 
   // Save Schedule & Templates Form
-  document.getElementById('formScheduleAndTemplates').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const payload = {
-      operationalStart: document.getElementById('inputOpStart').value,
-      operationalEnd: document.getElementById('inputOpEnd').value,
-      waWindowStart: document.getElementById('inputWaStart').value,
-      waWindowEnd: document.getElementById('inputWaEnd').value,
-      samsatAdvanceDays: Number(document.getElementById('inputSamsatDays').value),
-      asuransiAdvanceDays: Number(document.getElementById('inputAsuransiDays').value),
-      serviceAdvanceDays: Number(document.getElementById('inputServiceDays')?.value || 5),
-      delaySecondsBetweenMessages: Number(document.getElementById('inputDelaySec').value),
-      autoSendEnabled: document.getElementById('chkAutoSendEnabled').checked,
-      templates: {
-        birthdayCustomer: document.getElementById('tplBdayCustomer').value,
-        birthdayStaff: document.getElementById('tplBdayStaff').value,
-        samsatCustomer: document.getElementById('tplSamsatCustomer').value,
-        samsatStaff: document.getElementById('tplSamsatStaff').value,
-        asuransiCustomer: document.getElementById('tplAsuransiCustomer').value,
-        asuransiStaff: document.getElementById('tplAsuransiStaff').value,
-        serviceCustomer: document.getElementById('tplServiceCustomer')?.value || '',
-        serviceStaff: document.getElementById('tplServiceStaff')?.value || ''
-      }
-    };
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+  const formSched = document.getElementById('formScheduleAndTemplates');
+  if (formSched) {
+    formSched.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        operationalStart: document.getElementById('inputOpStart')?.value || '08:00',
+        operationalEnd: document.getElementById('inputOpEnd')?.value || '16:00',
+        waWindowStart: document.getElementById('inputWaStart')?.value || '10:00',
+        waWindowEnd: document.getElementById('inputWaEnd')?.value || '14:00',
+        samsatAdvanceDays: Number(document.getElementById('inputSamsatDays')?.value ?? 3),
+        asuransiAdvanceDays: Number(document.getElementById('inputAsuransiDays')?.value ?? 3),
+        serviceAdvanceDays: Number(document.getElementById('inputServiceDays')?.value ?? 5),
+        delaySecondsBetweenMessages: Number(document.getElementById('inputDelaySec')?.value ?? 8),
+        autoSendEnabled: document.getElementById('chkAutoSendEnabled') ? document.getElementById('chkAutoSendEnabled').checked : true,
+        templates: {
+          birthdayCustomer: document.getElementById('tplBdayCustomer')?.value || '',
+          birthdayStaff: document.getElementById('tplBdayStaff')?.value || '',
+          samsatCustomer: document.getElementById('tplSamsatCustomer')?.value || '',
+          samsatStaff: document.getElementById('tplSamsatStaff')?.value || '',
+          asuransiCustomer: document.getElementById('tplAsuransiCustomer')?.value || '',
+          asuransiStaff: document.getElementById('tplAsuransiStaff')?.value || '',
+          serviceCustomer: document.getElementById('tplServiceCustomer')?.value || '',
+          serviceStaff: document.getElementById('tplServiceStaff')?.value || ''
+        }
+      };
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      showToast('✅ Jadwal WITA (10:00–14:00 WITA) & Template Pesan berhasil disimpan!');
+      fetchDashboard(false);
     });
-    showToast('✅ Jadwal WITA (10:00–14:00 WITA) & Template Pesan berhasil disimpan!');
-    fetchDashboard(false);
-  });
+  }
 });
