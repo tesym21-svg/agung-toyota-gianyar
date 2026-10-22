@@ -701,6 +701,82 @@ body {
   flex-wrap: wrap;
 }
 
+/* COMPACT CUSTOMER TOP TOOLBAR WITH ☰ MENU BUTTON */
+.customer-top-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-lg);
+  padding: 12px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.toolbar-left-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-menu-drawer {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  color: #ffffff;
+  border: 1px solid #334155;
+  border-radius: var(--radius-md);
+  padding: 9px 16px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.btn-menu-drawer:hover {
+  background: linear-gradient(135deg, #0f172a 0%, #000000 100%);
+  border-color: #64748b;
+  transform: translateY(-1px);
+}
+
+.hamburger-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.toolbar-mini-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.toolbar-mini-badge.connected {
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.toolbar-mini-badge.disconnected {
+  background: #64748b;
+  color: #ffffff;
+}
+
+.customer-counter-badge {
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  color: var(--slate-700);
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+
 /* EXCEL BANNER & TABLE */
 .excel-Control-banner {
   background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);

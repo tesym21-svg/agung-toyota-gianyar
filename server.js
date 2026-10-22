@@ -476,11 +476,14 @@ function ensureExcelExists() {
 }
 
 function mapExcelRowToCustomer(row, fallbackNo) {
-  // Support flexible column names so user's custom Excel headers still work seamlessly
+  // Support flexible column names: strip spaces, underscores, dots, hyphens, and lowercase
+  const norm = (str) => String(str || '').toLowerCase().replace(/[\s_\.\-]/g, '');
+
   const getCol = (keys) => {
     for (const k of keys) {
+      const targetNorm = norm(k);
       for (const actualKey of Object.keys(row)) {
-        if (actualKey.trim().toLowerCase() === k.toLowerCase()) {
+        if (norm(actualKey) === targetNorm) {
           return row[actualKey];
         }
       }
@@ -489,23 +492,23 @@ function mapExcelRowToCustomer(row, fallbackNo) {
   };
 
   return {
-    id: Number(getCol(['No', 'ID', 'Nomor'])) || fallbackNo,
-    namaPelanggan: String(getCol(['Nama Pelanggan', 'Nama', 'Pelanggan', 'Customer']) || '').trim(),
-    waPelanggan: normalizePhone(getCol(['No. WA Pelanggan', 'WA Pelanggan', 'WA', 'No WA', 'No HP', 'Telepon'])),
-    emailPelanggan: String(getCol(['Email Pelanggan', 'Email', 'Email Customer']) || '').trim(),
-    tipeMobil: String(getCol(['Tipe Mobil', 'Mobil', 'Unit', 'Kendaraan', 'Tipe Kendaraan']) || '').trim(),
-    noPolisi: String(getCol(['No. Polisi', 'No Polisi', 'Nopol', 'Plat Nomor', 'DK']) || '').trim(),
-    tglUlangTahun: normalizeDateCell(getCol(['Tgl Ulang Tahun', 'Tanggal Ulang Tahun', 'Ulang Tahun', 'Ultah', 'Tgl Lahir'])),
-    tglSamsat: normalizeDateCell(getCol(['Tgl Habis Samsat', 'Tanggal Samsat', 'Tgl Samsat', 'Samsat', 'Jatuh Tempo Samsat'])),
-    tglAsuransi: normalizeDateCell(getCol(['Tgl Expired Asuransi', 'Tanggal Expired Asuransi', 'Tgl Asuransi', 'Asuransi', 'Expired Asuransi'])),
-    tglService: normalizeDateCell(getCol(['Tgl Next Service', 'Tanggal Next Service', 'Next Service', 'Tgl Service', 'Tanggal Service', 'Jadwal Service', 'Service Berkala'])),
-    namaSales: String(getCol(['Nama Sales', 'Sales']) || '').trim(),
-    waSales: normalizePhone(getCol(['No. WA Sales', 'WA Sales', 'HP Sales'])),
-    emailSales: String(getCol(['Email Sales']) || '').trim(),
-    namaSA: String(getCol(['Nama SA', 'SA', 'Service Advisor']) || '').trim(),
-    waSA: normalizePhone(getCol(['No. WA SA', 'WA SA', 'HP SA'])),
-    emailSA: String(getCol(['Email SA']) || '').trim(),
-    statusLog: String(getCol(['Status Log Pengiriman', 'Status Log', 'Status']) || '').trim()
+    id: Number(getCol(['id', 'No', 'ID', 'Nomor'])) || fallbackNo,
+    namaPelanggan: String(getCol(['namaPelanggan', 'Nama Pelanggan', 'Nama', 'Pelanggan', 'Customer']) || '').trim(),
+    waPelanggan: normalizePhone(getCol(['waPelanggan', 'No. WA Pelanggan', 'WA Pelanggan', 'WA', 'No WA', 'No HP', 'Telepon'])),
+    emailPelanggan: String(getCol(['emailPelanggan', 'Email Pelanggan', 'Email', 'Email Customer']) || '').trim(),
+    tipeMobil: String(getCol(['tipeMobil', 'Tipe Mobil', 'Mobil', 'Unit', 'Kendaraan', 'Tipe Kendaraan']) || '').trim(),
+    noPolisi: String(getCol(['noPolisi', 'No. Polisi', 'No Polisi', 'Nopol', 'Plat Nomor', 'DK', 'Plat']) || '').trim(),
+    tglUlangTahun: normalizeDateCell(getCol(['tglUlangTahun', 'Tgl Ulang Tahun', 'Tanggal Ulang Tahun', 'Ulang Tahun', 'Ultah', 'Tgl Lahir'])),
+    tglSamsat: normalizeDateCell(getCol(['tglSamsat', 'Tgl Habis Samsat', 'Tanggal Samsat', 'Tgl Samsat', 'Samsat', 'Jatuh Tempo Samsat'])),
+    tglAsuransi: normalizeDateCell(getCol(['tglAsuransi', 'Tgl Expired Asuransi', 'Tanggal Expired Asuransi', 'Tgl Asuransi', 'Asuransi', 'Expired Asuransi'])),
+    tglService: normalizeDateCell(getCol(['tglService', 'Tgl Next Service', 'Tanggal Next Service', 'Next Service', 'Tgl Service', 'Tanggal Service', 'Jadwal Service', 'Service Berkala'])),
+    namaSales: String(getCol(['namaSales', 'Nama Sales', 'Sales']) || '').trim(),
+    waSales: normalizePhone(getCol(['waSales', 'No. WA Sales', 'WA Sales', 'HP Sales'])),
+    emailSales: String(getCol(['emailSales', 'Email Sales']) || '').trim(),
+    namaSA: String(getCol(['namaSA', 'Nama SA', 'SA', 'Service Advisor']) || '').trim(),
+    waSA: normalizePhone(getCol(['waSA', 'No. WA SA', 'WA SA', 'HP SA'])),
+    emailSA: String(getCol(['emailSA', 'Email SA']) || '').trim(),
+    statusLog: String(getCol(['statusLog', 'Status Log Pengiriman', 'Status Log', 'Status']) || '').trim()
   };
 }
 
@@ -517,7 +520,7 @@ function readCustomersFromExcel() {
   const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
   return rawRows
     .map((r, i) => mapExcelRowToCustomer(r, i + 1))
-    .filter(c => c.namaPelanggan !== '');
+    .filter(c => c.namaPelanggan || c.noPolisi || c.waPelanggan);
 }
 
 // ============================================================================
@@ -542,7 +545,7 @@ async function getAllCustomers(forceRefresh = false) {
 
   // 1. Prioritas Utama: Google Spreadsheet API (2-Arah) jika URL terpasang
   if (config.googleSheetApiUrl) {
-    if (!forceRefresh && inMemoryCustomers && (Date.now() - lastGsheetSyncTime < 3500)) {
+    if (!forceRefresh && inMemoryCustomers && inMemoryCustomers.length > 0 && (Date.now() - lastGsheetSyncTime < 3500)) {
       return inMemoryCustomers;
     }
     try {
@@ -550,11 +553,15 @@ async function getAllCustomers(forceRefresh = false) {
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const mapped = json.data.map((r, i) => mapExcelRowToCustomer(r, i + 1));
-          inMemoryCustomers = mapped;
-          lastGsheetSyncTime = Date.now();
-          try { writeCustomersToExcel(mapped); } catch (_) {}
-          return mapped;
+          const mapped = json.data
+            .map((r, i) => mapExcelRowToCustomer(r, i + 1))
+            .filter(c => c.namaPelanggan || c.noPolisi || c.waPelanggan);
+          if (mapped.length > 0) {
+            inMemoryCustomers = mapped;
+            lastGsheetSyncTime = Date.now();
+            try { writeCustomersToExcel(mapped); } catch (_) {}
+            return mapped;
+          }
         }
       }
     } catch (err) {
@@ -577,7 +584,7 @@ async function getAllCustomers(forceRefresh = false) {
   return inMemoryCustomers || [];
 }
 
-async function saveAllCustomers(customers) {
+async function saveAllCustomers(customers, syncToCloud = true) {
   inMemoryCustomers = customers;
   // Simpan ke Excel lokal
   writeCustomersToExcel(customers);
@@ -585,9 +592,9 @@ async function saveAllCustomers(customers) {
   // Cadangan Cloud Backup
   cloudSaveCustomers(customers).catch(() => {});
 
-  // Sinkronisasi 2-Arah ke Google Spreadsheet jika URL terpasang
+  // Sinkronisasi 2-Arah ke Google Spreadsheet jika diminta dan data valid
   const config = loadConfig();
-  if (config.googleSheetApiUrl) {
+  if (syncToCloud && config.googleSheetApiUrl && Array.isArray(customers) && customers.length > 0) {
     try {
       await fetch(config.googleSheetApiUrl, {
         method: 'POST',
@@ -1559,15 +1566,13 @@ app.post('/api/google-sheets/save-url', async (req, res) => {
         if (resGsheet.ok) {
           const json = await resGsheet.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-            const mapped = json.data.map((r, i) => mapExcelRowToCustomer(r, i + 1));
-            await saveAllCustomers(mapped);
-            return res.json({ ok: true, count: mapped.length, message: `✅ Berhasil terhubung! Mengimpor ${mapped.length} data dari Google Spreadsheet.` });
-          } else {
-            // Spreadsheet masih kosong, unggah data saat ini ke spreadsheet
-            const current = await getAllCustomers(false);
-            if (current.length > 0) {
-              await saveAllCustomers(current);
-              return res.json({ ok: true, count: current.length, message: `✅ Berhasil terhubung! Menyalin ${current.length} pelanggan ke Google Spreadsheet.` });
+            const mapped = json.data
+              .map((r, i) => mapExcelRowToCustomer(r, i + 1))
+              .filter(c => c.namaPelanggan || c.noPolisi || c.waPelanggan);
+            if (mapped.length > 0) {
+              // syncToCloud: false agar tidak menulis ulang ke Google Sheets saat inisialisasi
+              await saveAllCustomers(mapped, false);
+              return res.json({ ok: true, count: mapped.length, message: `✅ Berhasil terhubung! Mengimpor ${mapped.length} data dari Google Spreadsheet.` });
             }
           }
         }
@@ -1581,7 +1586,7 @@ app.post('/api/google-sheets/save-url', async (req, res) => {
   }
 });
 
-// Tarik data terbaru dari Google Spreadsheet ke aplikasi
+// Tarik data terbaru dari Google Spreadsheet ke aplikasi (PULL)
 app.post('/api/google-sheets/pull', async (req, res) => {
   try {
     const config = loadConfig();
@@ -1589,13 +1594,27 @@ app.post('/api/google-sheets/pull', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'URL Google Apps Script belum diisi.' });
     }
     const resGsheet = await fetch(`${config.googleSheetApiUrl}?action=get_customers&t=${Date.now()}`);
-    if (!resGsheet.ok) throw new Error('Gagal menghubungi Google Apps Script Web App.');
+    if (!resGsheet.ok) throw new Error(`Google Apps Script merespon kode: ${resGsheet.status}`);
     const json = await resGsheet.json();
-    if (!json.success || !Array.isArray(json.data)) throw new Error('Format respon Google Spreadsheet tidak valid.');
+    if (!json.success || !Array.isArray(json.data)) {
+      throw new Error(json.error || 'Format respon Google Spreadsheet tidak valid.');
+    }
 
-    const mapped = json.data.map((r, i) => mapExcelRowToCustomer(r, i + 1));
-    await saveAllCustomers(mapped);
-    res.json({ ok: true, count: mapped.length });
+    if (json.data.length === 0) {
+      return res.json({ ok: true, count: 0, message: 'Google Spreadsheet saat ini kosong (hanya header).' });
+    }
+
+    const mapped = json.data
+      .map((r, i) => mapExcelRowToCustomer(r, i + 1))
+      .filter(c => c.namaPelanggan || c.noPolisi || c.waPelanggan);
+
+    if (mapped.length === 0) {
+      return res.status(400).json({ ok: false, error: 'Data ditemukan di Google Sheets namun nama pelanggan/nopol kosong.' });
+    }
+
+    // PENTING: syncToCloud = false agar PULL TIDAK PERNAH menghapus atau menulis balik ke Google Sheets!
+    await saveAllCustomers(mapped, false);
+    res.json({ ok: true, count: mapped.length, message: `Berhasil menarik ${mapped.length} pelanggan dari Google Sheets.` });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

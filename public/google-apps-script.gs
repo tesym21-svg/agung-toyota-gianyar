@@ -81,34 +81,62 @@ function cleanPhoneVal(val) {
 function readAllCustomersFromSheet() {
   const sheet = getOrCreateCustomerSheet();
   const lastRow = sheet.getLastRow();
+  const lastCol = Math.max(sheet.getLastColumn(), HEADERS.length);
   if (lastRow <= 1) return [];
 
-  const values = sheet.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+  const allValues = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+  const headerRow = allValues[0];
+
+  const norm = (s) => String(s || '').toLowerCase().replace(/[\s_\.\-]/g, '');
+
+  const colMap = {};
+  for (let c = 0; c < headerRow.length; c++) {
+    const h = norm(headerRow[c]);
+    if (h) colMap[h] = c;
+  }
+
+  const getCell = (row, candidates, fallbackIdx) => {
+    for (let i = 0; i < candidates.length; i++) {
+      const key = norm(candidates[i]);
+      if (colMap[key] !== undefined && colMap[key] < row.length) {
+        return row[colMap[key]];
+      }
+    }
+    if (fallbackIdx !== undefined && fallbackIdx < row.length) {
+      return row[fallbackIdx];
+    }
+    return '';
+  };
+
   const customers = [];
 
-  for (let i = 0; i < values.length; i++) {
-    const r = values[i];
-    const nama = String(r[1] || '').trim();
-    if (!nama) continue;
+  for (let i = 1; i < allValues.length; i++) {
+    const r = allValues[i];
+    const nama = String(getCell(r, ['Nama Pelanggan', 'Nama', 'Customer', 'namaPelanggan'], 1) || '').trim();
+    const nopol = String(getCell(r, ['No. Polisi', 'No Polisi', 'Plat Nomor', 'Nopol', 'Plat', 'noPolisi'], 5) || '').trim();
+    const wa = cleanPhoneVal(getCell(r, ['No. WA Pelanggan', 'WA Pelanggan', 'No WA', 'WA', 'Telepon', 'waPelanggan'], 2));
+
+    // Selama ada Nama ATAU Plat Nomor ATAU No WA, anggap baris valid
+    if (!nama && !nopol && !wa) continue;
 
     customers.push({
-      id: Number(r[0]) || (i + 1),
-      namaPelanggan: nama,
-      waPelanggan: cleanPhoneVal(r[2]),
-      emailPelanggan: String(r[3] || '').trim(),
-      tipeMobil: String(r[4] || '').trim(),
-      noPolisi: String(r[5] || '').trim(),
-      tglUlangTahun: normalizeDateVal(r[6]),
-      tglSamsat: normalizeDateVal(r[7]),
-      tglAsuransi: normalizeDateVal(r[8]),
-      tglService: normalizeDateVal(r[9]),
-      namaSales: String(r[10] || '').trim(),
-      waSales: cleanPhoneVal(r[11]),
-      emailSales: String(r[12] || '').trim(),
-      namaSA: String(r[13] || '').trim(),
-      waSA: cleanPhoneVal(r[14]),
-      emailSA: String(r[15] || '').trim(),
-      statusLog: String(r[16] || '').trim()
+      id: Number(getCell(r, ['No', 'ID', 'Nomor'], 0)) || i,
+      namaPelanggan: nama || 'Pelanggan Tanpa Nama',
+      waPelanggan: wa,
+      emailPelanggan: String(getCell(r, ['Email Pelanggan', 'Email', 'emailPelanggan'], 3) || '').trim(),
+      tipeMobil: String(getCell(r, ['Tipe Mobil', 'Mobil', 'Unit', 'tipeMobil'], 4) || '').trim(),
+      noPolisi: nopol,
+      tglUlangTahun: normalizeDateVal(getCell(r, ['Tgl Ulang Tahun', 'Tanggal Ulang Tahun', 'Ulang Tahun', 'Ultah', 'tglUlangTahun'], 6)),
+      tglSamsat: normalizeDateVal(getCell(r, ['Tgl Habis Samsat', 'Tanggal Samsat', 'Tgl Samsat', 'Samsat', 'tglSamsat'], 7)),
+      tglAsuransi: normalizeDateVal(getCell(r, ['Tgl Expired Asuransi', 'Tgl Asuransi', 'Asuransi', 'tglAsuransi'], 8)),
+      tglService: normalizeDateVal(getCell(r, ['Tgl Next Service', 'Next Service', 'Service', 'Tgl Service', 'tglService'], 9)),
+      namaSales: String(getCell(r, ['Nama Sales', 'Sales', 'namaSales'], 10) || '').trim(),
+      waSales: cleanPhoneVal(getCell(r, ['No. WA Sales', 'WA Sales', 'HP Sales', 'waSales'], 11)),
+      emailSales: String(getCell(r, ['Email Sales', 'emailSales'], 12) || '').trim(),
+      namaSA: String(getCell(r, ['Nama SA', 'SA', 'Service Advisor', 'namaSA'], 13) || '').trim(),
+      waSA: cleanPhoneVal(getCell(r, ['No. WA SA', 'WA SA', 'HP SA', 'waSA'], 14)),
+      emailSA: String(getCell(r, ['Email SA', 'emailSA'], 15) || '').trim(),
+      statusLog: String(getCell(r, ['Status Log Pengiriman', 'Status Log', 'Status', 'statusLog'], 16) || '').trim()
     });
   }
   return customers;
@@ -116,15 +144,17 @@ function readAllCustomersFromSheet() {
 
 function syncAllCustomersToSheet(customers) {
   const sheet = getOrCreateCustomerSheet();
-  
+
+  // PROTEKSI KEAMANAN TINGKAT TINGGI:
+  // Jangan pernah menghapus baris spreadsheet jika array data kosong atau tidak valid!
+  if (!Array.isArray(customers) || customers.length === 0) {
+    return { success: false, error: 'Daftar pelanggan kosong. Penghapusan baris dicegah demi keselamatan data.' };
+  }
+
   // Hapus semua baris data lama (pertahankan baris 1 header)
   const lastRow = sheet.getLastRow();
   if (lastRow > 1) {
     sheet.deleteRows(2, lastRow - 1);
-  }
-
-  if (!Array.isArray(customers) || customers.length === 0) {
-    return { success: true, count: 0 };
   }
 
   const rows = customers.map((c, idx) => [

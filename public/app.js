@@ -142,14 +142,32 @@ function renderHeaderAndStats(data) {
   waBadge.classList.toggle('active-now', Boolean(data.inWaWindow));
 
   const gsheetPill = document.getElementById('gsheetStatusPill');
+  const toolbarBadge = document.getElementById('toolbarGSheetBadge');
+  const isGsheetConnected = Boolean(data.config?.googleSheetApiUrl);
+
   if (gsheetPill) {
-    if (data.config?.googleSheetApiUrl) {
+    if (isGsheetConnected) {
       gsheetPill.className = 'gsheet-pill connected';
       gsheetPill.textContent = '🟢 Terhubung ke Google Spreadsheet (2-Arah)';
     } else {
       gsheetPill.className = 'gsheet-pill disconnected';
       gsheetPill.textContent = '⚪ Belum Terhubung (Penyimpanan Lokal / Excel)';
     }
+  }
+
+  if (toolbarBadge) {
+    if (isGsheetConnected) {
+      toolbarBadge.className = 'toolbar-mini-badge connected';
+      toolbarBadge.textContent = '🟢 Google Sheets';
+    } else {
+      toolbarBadge.className = 'toolbar-mini-badge disconnected';
+      toolbarBadge.textContent = '⚪ Excel';
+    }
+  }
+
+  const summaryCountEl = document.getElementById('summaryCountCustomers');
+  if (summaryCountEl) {
+    summaryCountEl.textContent = data.stats.totalCustomers ?? (appState.customers?.length || 0);
   }
 }
 
@@ -1068,6 +1086,35 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCopyGScript2.addEventListener('click', () => {
       copyGScriptText();
       if (dlgGScript) dlgGScript.close();
+    });
+  }
+
+  // 5. Tombol Garis 3 (☰) Buka Menu Database & File Excel
+  const btnToggleDbMenu = document.getElementById('btnToggleDatabaseMenu');
+  const dlgDbMenu = document.getElementById('dialogDatabaseMenu');
+  if (btnToggleDbMenu && dlgDbMenu) {
+    btnToggleDbMenu.addEventListener('click', () => {
+      dlgDbMenu.showModal();
+    });
+  }
+
+  // 6. Quick Pull langsung dari Toolbar Utama
+  const btnQuickPull = document.getElementById('btnQuickPullFromGSheet');
+  if (btnQuickPull) {
+    btnQuickPull.addEventListener('click', async () => {
+      showToast('🔄 Menarik data pelanggan terbaru dari Google Spreadsheet...');
+      try {
+        const res = await fetch('/api/google-sheets/pull', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showToast(`❌ Gagal tarik data: ${data.error || 'Periksa URL Google Sheets'}`);
+          return;
+        }
+        showToast(`✅ Sukses! ${data.count} pelanggan dimuat dari Google Spreadsheet.`);
+        fetchDashboard(false);
+      } catch (err) {
+        showToast(`❌ Terjadi kesalahan: ${err.message}`);
+      }
     });
   }
 

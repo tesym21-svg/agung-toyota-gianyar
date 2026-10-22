@@ -238,61 +238,23 @@
 
     <!-- TAB 2: DATA PELANGGAN & EXCEL -->
     <section id="tab-excel" class="tab-panel">
-      <div class="excel-Control-banner">
-        <div class="excel-banner-left">
-          <h2>Kelola Data Pelanggan via File Excel (.xlsx)</h2>
-          <p>Unduh template resmi di sebelah kanan, isi data di Microsoft Excel sesuai urutan kolom di bawah, lalu upload kembali.</p>
-        </div>
-        <div class="excel-banner-actions">
-          <a href="/api/excel/template" class="btn btn-outline">📥 Download Template Excel (.xlsx)</a>
-          <a href="/api/excel/download" class="btn btn-secondary">💾 Export Data Excel Saat Ini</a>
-          <button type="button" class="btn btn-outline" id="btnOpenExcelModal">📤 Upload File Excel (.xlsx)</button>
+      <!-- COMPACT CUSTOMER TOP TOOLBAR DENGAN TOMBOL ☰ GARIS 3 -->
+      <div class="customer-top-toolbar">
+        <div class="toolbar-left-group">
+          <button type="button" class="btn btn-menu-drawer" id="btnToggleDatabaseMenu" title="Buka Menu Database, Google Sheets &amp; Excel">
+            <span class="hamburger-icon">☰</span>
+            <span class="menu-btn-text">Menu Database &amp; Spreadsheet</span>
+            <span id="toolbarGSheetBadge" class="toolbar-mini-badge disconnected">⚪ Excel</span>
+          </button>
           <button type="button" class="btn btn-primary" id="btnOpenAddCustomer">➕ Tambah Pelanggan</button>
+          <button type="button" class="btn btn-secondary" id="btnQuickPullFromGSheet" title="Tarik data terbaru dari Google Sheets sekarang">
+            🔄 Tarik Google Sheets
+          </button>
         </div>
-      </div>
-
-      <!-- GOOGLE SPREADSHEET 2-WAY DATABASE INTEGRATION (ACCU CARE PATTERN) -->
-      <div class="gsheet-panel">
-        <div class="gsheet-panel-header">
-          <div class="gsheet-badge-title">
-            <span class="gsheet-logo-icon">📊</span>
-            <div>
-              <h3>Database Utama: Google Spreadsheet (Sinkronisasi 2-Arah)</h3>
-              <p class="gsheet-desc">
-                Solusi permanen (sama seperti Accu Care). Data tersimpan abadi di cloud Google Sheets Anda, aman saat aplikasi di-refresh, dibuka di HP/Laptop lain, maupun di-deploy ke Vercel!
-              </p>
-            </div>
-          </div>
-          <div class="gsheet-status-wrap">
-            <span id="gsheetStatusPill" class="gsheet-pill disconnected">⚪ Belum Terhubung (Penyimpanan Lokal / Excel)</span>
-          </div>
-        </div>
-
-        <div class="gsheet-content-body">
-          <form id="formSaveGoogleSheetUrl" class="gsheet-url-form">
-            <div class="gsheet-input-group">
-              <label for="inputGoogleSheetApiUrl"><strong>URL Web App Google Apps Script (/exec):</strong></label>
-              <div class="gsheet-input-wrapper">
-                <input type="url" id="inputGoogleSheetApiUrl" placeholder="https://script.google.com/macros/s/.../exec" class="input-control" autocomplete="off">
-                <button type="submit" class="btn btn-primary" id="btnSaveGSheetUrl">💾 Simpan &amp; Hubungkan</button>
-              </div>
-              <small class="text-muted" style="display:block;margin-top:4px;font-size:12px;color:var(--slate-500);">
-                💡 Pasang skrip Apps Script sekali di Google Spreadsheet Anda, lalu tempel URL Web App-nya di sini.
-              </small>
-            </div>
-          </form>
-
-          <div class="gsheet-actions-bar">
-            <button type="button" class="btn btn-secondary btn-sm" id="btnPullFromGSheet">
-              🔄 Tarik Data dari Spreadsheet (Pull)
-            </button>
-            <button type="button" class="btn btn-outline btn-sm" id="btnPushToGSheet">
-              ☁️ Unggah Semua Data ke Spreadsheet (Push Backup)
-            </button>
-            <button type="button" class="btn btn-outline btn-sm" id="btnOpenGoogleScriptModal">
-              📋 Panduan Setup &amp; Kode Script (1-Klik)
-            </button>
-          </div>
+        <div class="toolbar-right-group">
+          <span class="customer-counter-badge">
+            👥 Total: <strong id="summaryCountCustomers">0</strong> Pelanggan
+          </span>
         </div>
       </div>
 
@@ -714,7 +676,79 @@
     </div>
   </dialog>
 
-  <!-- MODAL 4: PANDUAN & KODE GOOGLE APPS SCRIPT -->
+  <!-- MODAL 4: MENU DATABASE & SINKRONISASI (TOMBOL GARIS 3 ☰) -->
+  <dialog id="dialogDatabaseMenu" closedby="any" aria-labelledby="titleDatabaseMenu" class="app-dialog dialog-lg">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="titleDatabaseMenu">☰ Menu Pengaturan Database &amp; Sinkronisasi File</h3>
+        <button type="button" class="btn-close-dialog" data-close-dialog="dialogDatabaseMenu" aria-label="Tutup">✕</button>
+      </div>
+      <div class="dialog-body-scroll" style="display: flex; flex-direction: column; gap: 18px; max-height: 72vh; overflow-y: auto; padding: 4px 2px;">
+        <!-- 1. GOOGLE SPREADSHEET 2-WAY DATABASE INTEGRATION (ACCU CARE PATTERN) -->
+        <div class="gsheet-panel">
+          <div class="gsheet-panel-header">
+            <div class="gsheet-badge-title">
+              <span class="gsheet-logo-icon">📊</span>
+              <div>
+                <h3>Database Utama: Google Spreadsheet (Sinkronisasi 2-Arah)</h3>
+                <p class="gsheet-desc">
+                  Solusi permanen (sama seperti Accu Care). Data tersimpan abadi di Google Sheets Anda, aman dari reset Vercel dan bisa diedit langsung di spreadsheet!
+                </p>
+              </div>
+            </div>
+            <div class="gsheet-status-wrap">
+              <span id="gsheetStatusPill" class="gsheet-pill disconnected">⚪ Belum Terhubung (Penyimpanan Lokal / Excel)</span>
+            </div>
+          </div>
+
+          <div class="gsheet-content-body">
+            <form id="formSaveGoogleSheetUrl" class="gsheet-url-form">
+              <div class="gsheet-input-group">
+                <label for="inputGoogleSheetApiUrl"><strong>URL Web App Google Apps Script (/exec):</strong></label>
+                <div class="gsheet-input-wrapper">
+                  <input type="url" id="inputGoogleSheetApiUrl" placeholder="https://script.google.com/macros/s/.../exec" class="input-control" autocomplete="off">
+                  <button type="submit" class="btn btn-primary" id="btnSaveGSheetUrl">💾 Simpan &amp; Hubungkan</button>
+                </div>
+                <small class="text-muted" style="display:block;margin-top:4px;font-size:12px;color:var(--slate-500);">
+                  💡 Pasang skrip Apps Script sekali di Google Spreadsheet Anda, lalu tempel URL Web App-nya di sini.
+                </small>
+              </div>
+            </form>
+
+            <div class="gsheet-actions-bar">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnPullFromGSheet">
+                🔄 Tarik Data dari Spreadsheet (Pull)
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnPushToGSheet">
+                ☁️ Unggah Semua Data ke Spreadsheet (Push Backup)
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnOpenGoogleScriptModal">
+                📋 Panduan Setup &amp; Kode Script (1-Klik)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. KELOLA DATA PELANGGAN VIA FILE EXCEL (.xlsx) -->
+        <div class="excel-Control-banner" style="margin-bottom: 0;">
+          <div class="excel-banner-left">
+            <h2>Kelola Data Pelanggan via File Excel (.xlsx)</h2>
+            <p>Unduh template resmi, isi di Excel sesuai urutan kolom, lalu upload kembali ke aplikasi.</p>
+          </div>
+          <div class="excel-banner-actions">
+            <a href="/api/excel/template" class="btn btn-outline btn-sm">📥 Download Template Excel (.xlsx)</a>
+            <a href="/api/excel/download" class="btn btn-secondary btn-sm">💾 Export Data Excel Saat Ini</a>
+            <button type="button" class="btn btn-primary btn-sm" id="btnOpenExcelModal">📤 Upload File Excel (.xlsx)</button>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn btn-outline" data-close-dialog="dialogDatabaseMenu">Tutup Menu</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- MODAL 5: PANDUAN & KODE GOOGLE APPS SCRIPT -->
   <dialog id="dialogGoogleScript" closedby="any" aria-labelledby="titleGoogleScriptModal" class="app-dialog dialog-xl">
     <div class="dialog-content">
       <div class="dialog-header">
