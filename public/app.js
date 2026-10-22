@@ -140,6 +140,17 @@ function renderHeaderAndStats(data) {
   const waBadge = document.getElementById('waWindowBadge');
   officeBadge.classList.toggle('active-now', Boolean(data.inOperationalHours));
   waBadge.classList.toggle('active-now', Boolean(data.inWaWindow));
+
+  const gsheetPill = document.getElementById('gsheetStatusPill');
+  if (gsheetPill) {
+    if (data.config?.googleSheetApiUrl) {
+      gsheetPill.className = 'gsheet-pill connected';
+      gsheetPill.textContent = '🟢 Terhubung ke Google Spreadsheet (2-Arah)';
+    } else {
+      gsheetPill.className = 'gsheet-pill disconnected';
+      gsheetPill.textContent = '⚪ Belum Terhubung (Penyimpanan Lokal / Excel)';
+    }
+  }
 }
 
 function renderTodayReminders() {
@@ -513,7 +524,20 @@ function populateConfigForms(cfg) {
     quickEmailInput.value = appState.customers[0]?.emailPelanggan || cfg.smtp?.user || '';
   }
 
-  document.getElementById('inputGoogleSheetUrl').value = cfg.googleSheetCsvUrl || '';
+  const gsheetInput = document.getElementById('inputGoogleSheetApiUrl');
+  if (gsheetInput) {
+    gsheetInput.value = cfg.googleSheetApiUrl || cfg.googleSheetCsvUrl || '';
+  }
+  const gsheetPill = document.getElementById('gsheetStatusPill');
+  if (gsheetPill) {
+    if (cfg.googleSheetApiUrl) {
+      gsheetPill.className = 'gsheet-pill connected';
+      gsheetPill.textContent = '🟢 Terhubung ke Google Spreadsheet (2-Arah)';
+    } else {
+      gsheetPill.className = 'gsheet-pill disconnected';
+      gsheetPill.textContent = '⚪ Belum Terhubung (Penyimpanan Lokal / Excel)';
+    }
+  }
 
   // WA Gateway
   document.getElementById('chkWaGatewayEnabled').checked = Boolean(cfg.waGateway?.enabled);
@@ -928,24 +952,124 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchDashboard(false);
   });
 
-  // Google Sheets Sync
-  document.getElementById('formGoogleSheetSync').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const url = document.getElementById('inputGoogleSheetUrl').value.trim();
-    showToast('🔄 Menarik data dari Google Sheets...');
-    const res = await fetch('/api/google-sheets/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
+  // ==========================================================================
+  // GOOGLE SPREADSHEET 2-WAY DATABASE INTEGRATION (ACCU CARE PATTERN)
+  // ==========================================================================
+  
+  // 1. Simpan & Hubungkan URL Google Apps Script Web App
+  const formSaveGSheet = document.getElementById('formSaveGoogleSheetUrl');
+  if (formSaveGSheet) {
+    formSaveGSheet.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const url = (document.getElementById('inputGoogleSheetApiUrl')?.value || '').trim();
+      if (!url) {
+        showToast('⚠️ Masukkan URL Web App Google Apps Script (/exec) terlebih dahulu');
+        return;
+      }
+      showToast('⏳ Menghubungkan dan memverifikasi koneksi Google Spreadsheet...');
+      try {
+        const res = await fetch('/api/google-sheets/save-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showToast(`❌ Gagal terhubung: ${data.error || 'Periksa izin publikasi Web App'}`);
+          return;
+        }
+        showToast(`✅ ${data.message || 'Berhasil terhubung ke Google Spreadsheet!'}`);
+        fetchDashboard(false);
+      } catch (err) {
+        showToast(`❌ Terjadi kesalahan: ${err.message}`);
+      }
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      showToast(`❌ Gagal sinkronisasi: ${data.error}`);
-      return;
+  }
+
+  // 2. Tarik Data Terbaru dari Google Spreadsheet (Pull)
+  const btnPullGSheet = document.getElementById('btnPullFromGSheet');
+  if (btnPullGSheet) {
+    btnPullGSheet.addEventListener('click', async () => {
+      showToast('🔄 Menarik data pelanggan terbaru dari Google Spreadsheet...');
+      try {
+        const res = await fetch('/api/google-sheets/pull', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showToast(`❌ Gagal tarik data: ${data.error}`);
+          return;
+        }
+        showToast(`✅ Sukses! ${data.count} pelanggan dimuat dari Google Spreadsheet.`);
+        fetchDashboard(false);
+      } catch (err) {
+        showToast(`❌ Terjadi kesalahan: ${err.message}`);
+      }
+    });
+  }
+
+  // 3. Unggah Semua Data ke Google Spreadsheet (Push Backup)
+  const btnPushGSheet = document.getElementById('btnPushToGSheet');
+  if (btnPushGSheet) {
+    btnPushGSheet.addEventListener('click', async () => {
+      if (!confirm('Apakah Anda ingin mengunggah semua data pelanggan saat ini untuk menggantikan isi Google Spreadsheet Anda?')) return;
+      showToast('☁️ Mengunggah data ke Google Spreadsheet...');
+      try {
+        const res = await fetch('/api/google-sheets/push', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showToast(`❌ Gagal upload: ${data.error}`);
+          return;
+        }
+        showToast(`✅ Berhasil! ${data.count} pelanggan tersimpan aman di Google Spreadsheet.`);
+      } catch (err) {
+        showToast(`❌ Terjadi kesalahan: ${err.message}`);
+      }
+    });
+  }
+
+  // 4. Modal Panduan & Salin Script
+  const btnOpenGScriptModal = document.getElementById('btnOpenGoogleScriptModal');
+  const txtAreaGScript = document.getElementById('googleAppsScriptCodeArea');
+  const dlgGScript = document.getElementById('dialogGoogleScript');
+
+  async function loadAndShowScriptModal() {
+    if (txtAreaGScript && !txtAreaGScript.value) {
+      try {
+        const res = await fetch('/google-apps-script.gs');
+        if (res.ok) {
+          txtAreaGScript.value = await res.text();
+        }
+      } catch (err) {
+        console.error('Gagal mengambil script file:', err);
+      }
     }
-    showToast(`✅ Berhasil menyinkronkan ${data.count} pelanggan dari Google Sheets!`);
-    fetchDashboard(false);
-  });
+    if (dlgGScript) dlgGScript.showModal();
+  }
+
+  if (btnOpenGScriptModal) {
+    btnOpenGScriptModal.addEventListener('click', loadAndShowScriptModal);
+  }
+
+  function copyGScriptText() {
+    if (!txtAreaGScript) return;
+    navigator.clipboard.writeText(txtAreaGScript.value).then(() => {
+      showToast('📋 Kode Google Apps Script berhasil disalin ke clipboard!');
+    }).catch(() => {
+      txtAreaGScript.select();
+      document.execCommand('copy');
+      showToast('📋 Kode Google Apps Script disalin!');
+    });
+  }
+
+  const btnCopyGScript1 = document.getElementById('btnCopyGoogleScript');
+  if (btnCopyGScript1) btnCopyGScript1.addEventListener('click', copyGScriptText);
+
+  const btnCopyGScript2 = document.getElementById('btnCopyGoogleScript2');
+  if (btnCopyGScript2) {
+    btnCopyGScript2.addEventListener('click', () => {
+      copyGScriptText();
+      if (dlgGScript) dlgGScript.close();
+    });
+  }
 
   // WhatsApp QR Connect / Disconnect
   document.getElementById('btnConnectWa').addEventListener('click', async () => {

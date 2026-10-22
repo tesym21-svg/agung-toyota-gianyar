@@ -251,13 +251,49 @@
         </div>
       </div>
 
-      <!-- Optional Google Sheets Sync Bar -->
-      <div class="gsheet-sync-box">
-        <form id="formGoogleSheetSync" class="gsheet-form" action="/api/google-sheets/sync" method="POST">
-          <label for="inputGoogleSheetUrl"><strong>🔗 Sinkronisasi Google Sheets (Opsional):</strong></label>
-          <input type="url" id="inputGoogleSheetUrl" name="url" placeholder="Tempel link Google Sheets (Akses: Siapa saja yang memiliki link dapat melihat)..." class="input-control">
-          <button type="submit" class="btn btn-secondary">🔄 Tarik Data dari Google Sheets</button>
-        </form>
+      <!-- GOOGLE SPREADSHEET 2-WAY DATABASE INTEGRATION (ACCU CARE PATTERN) -->
+      <div class="gsheet-panel">
+        <div class="gsheet-panel-header">
+          <div class="gsheet-badge-title">
+            <span class="gsheet-logo-icon">📊</span>
+            <div>
+              <h3>Database Utama: Google Spreadsheet (Sinkronisasi 2-Arah)</h3>
+              <p class="gsheet-desc">
+                Solusi permanen (sama seperti Accu Care). Data tersimpan abadi di cloud Google Sheets Anda, aman saat aplikasi di-refresh, dibuka di HP/Laptop lain, maupun di-deploy ke Vercel!
+              </p>
+            </div>
+          </div>
+          <div class="gsheet-status-wrap">
+            <span id="gsheetStatusPill" class="gsheet-pill disconnected">⚪ Belum Terhubung (Penyimpanan Lokal / Excel)</span>
+          </div>
+        </div>
+
+        <div class="gsheet-content-body">
+          <form id="formSaveGoogleSheetUrl" class="gsheet-url-form">
+            <div class="gsheet-input-group">
+              <label for="inputGoogleSheetApiUrl"><strong>URL Web App Google Apps Script (/exec):</strong></label>
+              <div class="gsheet-input-wrapper">
+                <input type="url" id="inputGoogleSheetApiUrl" placeholder="https://script.google.com/macros/s/.../exec" class="input-control" autocomplete="off">
+                <button type="submit" class="btn btn-primary" id="btnSaveGSheetUrl">💾 Simpan &amp; Hubungkan</button>
+              </div>
+              <small class="text-muted" style="display:block;margin-top:4px;font-size:12px;color:var(--slate-500);">
+                💡 Pasang skrip Apps Script sekali di Google Spreadsheet Anda, lalu tempel URL Web App-nya di sini.
+              </small>
+            </div>
+          </form>
+
+          <div class="gsheet-actions-bar">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPullFromGSheet">
+              🔄 Tarik Data dari Spreadsheet (Pull)
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnPushToGSheet">
+              ☁️ Unggah Semua Data ke Spreadsheet (Push Backup)
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnOpenGoogleScriptModal">
+              📋 Panduan Setup &amp; Kode Script (1-Klik)
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Search & Filter Table -->
@@ -674,6 +710,49 @@
       <div class="dialog-footer">
         <button type="button" class="btn btn-outline" data-close-dialog="dialogPreviewMessage">Tutup</button>
         <button type="button" class="btn btn-primary" id="btnConfirmSendFromPreview">🚀 Kirim Otomatis Sekarang (WA &amp; Email)</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- MODAL 4: PANDUAN & KODE GOOGLE APPS SCRIPT -->
+  <dialog id="dialogGoogleScript" closedby="any" aria-labelledby="titleGoogleScriptModal" class="app-dialog dialog-xl">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="titleGoogleScriptModal">📋 Panduan Setup Integrasi Google Spreadsheet (2-Arah)</h3>
+        <button type="button" class="btn-close-dialog" data-close-dialog="dialogGoogleScript" aria-label="Tutup">✕</button>
+      </div>
+      <div class="script-modal-body">
+        <div class="script-instructions-steps">
+          <h4>🚀 Cara Pasang dalam 3 Menit (Sama persis seperti Accu Care):</h4>
+          <ol>
+            <li>Buka <strong>Google Spreadsheet baru</strong> di Google Drive Anda (beri nama misal: <em>Database Agung Toyota Gianyar</em>).</li>
+            <li>Klik menu atas: <strong>Ekstensi (Extensions) &rarr; Apps Script</strong>.</li>
+            <li>Hapus semua teks yang ada di editor Apps Script, lalu <strong>salin seluruh kode di bawah</strong> dan tempel di sana.</li>
+            <li>Klik ikon <strong>💾 Simpan (Save)</strong> (Ctrl+S).</li>
+            <li>Klik tombol biru <strong>Terapkan (Deploy) &rarr; Penerapan baru (New deployment)</strong> di kanan atas:
+              <ul>
+                <li>Klik ikon roda gigi di samping "Pilih jenis" &rarr; pilih <strong>Aplikasi Web (Web app)</strong>.</li>
+                <li>Deskripsi: <code>Agung Toyota API</code></li>
+                <li>Jalankan sebagai (Execute as): <strong>Saya (email Anda)</strong></li>
+                <li>Yang memiliki akses (Who has access): <strong>Siapa saja (Anyone)</strong> <em>(PENTING agar web app dapat membaca &amp; menulis data)</em></li>
+              </ul>
+            </li>
+            <li>Klik <strong>Terapkan (Deploy)</strong>, klik <strong>Berikan Akses (Authorize access)</strong> dengan akun Google Anda, lalu salin <strong>URL Aplikasi Web (yang berakhiran <code>/exec</code>)</strong>.</li>
+            <li>Kembali ke aplikasi ini, tempelkan URL tersebut ke kolom <strong>URL Web App Google Apps Script</strong> lalu klik <strong>"💾 Simpan &amp; Hubungkan"</strong>. Selesai! Data Anda langsung tersambung 2-arah.</li>
+          </ol>
+        </div>
+
+        <div class="script-code-container">
+          <div class="script-code-header">
+            <span><strong>Kode Google Apps Script (google-apps-script.gs)</strong></span>
+            <button type="button" class="btn btn-sm btn-primary" id="btnCopyGoogleScript">📋 Salin Seluruh Kode</button>
+          </div>
+          <textarea id="googleAppsScriptCodeArea" class="script-textarea" readonly rows="16"></textarea>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn btn-outline" data-close-dialog="dialogGoogleScript">Tutup</button>
+        <button type="button" class="btn btn-primary" id="btnCopyGoogleScript2">📋 Salin Kode &amp; Tutup</button>
       </div>
     </div>
   </dialog>

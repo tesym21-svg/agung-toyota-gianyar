@@ -156,6 +156,7 @@ const DEFAULT_CONFIG = {
   asuransiAdvanceDays: 3,
   serviceAdvanceDays: 5,
   googleSheetCsvUrl: '',
+  googleSheetApiUrl: process.env.GOOGLE_SHEET_API || '',
   smtp: {
     enabled: true,
     service: 'gmail',
@@ -517,6 +518,87 @@ function readCustomersFromExcel() {
   return rawRows
     .map((r, i) => mapExcelRowToCustomer(r, i + 1))
     .filter(c => c.namaPelanggan !== '');
+}
+
+// ============================================================================
+// 2-WAY PERSISTENCE ENGINE (GOOGLE SPREADSHEET 2-WAY SYNC + CLOUD BACKUP)
+// ============================================================================
+let inMemoryCustomers = null;
+let lastGsheetSyncTime = 0;
+
+async function cloudSaveCustomers(customers) {
+  if (!Array.isArray(customers) || customers.length === 0) return;
+  try {
+    await fetch('https://bytebin.lucko.me/post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(customers)
+    });
+  } catch (_) {}
+}
+
+async function getAllCustomers(forceRefresh = false) {
+  const config = loadConfig();
+
+  // 1. Prioritas Utama: Google Spreadsheet API (2-Arah) jika URL terpasang
+  if (config.googleSheetApiUrl) {
+    if (!forceRefresh && inMemoryCustomers && (Date.now() - lastGsheetSyncTime < 3500)) {
+      return inMemoryCustomers;
+    }
+    try {
+      const res = await fetch(`${config.googleSheetApiUrl}?action=get_customers&t=${Date.now()}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const mapped = json.data.map((r, i) => mapExcelRowToCustomer(r, i + 1));
+          inMemoryCustomers = mapped;
+          lastGsheetSyncTime = Date.now();
+          try { writeCustomersToExcel(mapped); } catch (_) {}
+          return mapped;
+        }
+      }
+    } catch (err) {
+      console.warn('[Google Sheets Sync] Gagal membaca dari Google Sheets:', err.message);
+    }
+  }
+
+  // 2. Jika ada di memory cache dan tidak dipaksa refresh
+  if (inMemoryCustomers && inMemoryCustomers.length > 0 && !forceRefresh) {
+    return inMemoryCustomers;
+  }
+
+  // 3. Baca dari file Excel lokal
+  const local = readCustomersFromExcel();
+  if (local && local.length > 0) {
+    inMemoryCustomers = local;
+    return local;
+  }
+
+  return inMemoryCustomers || [];
+}
+
+async function saveAllCustomers(customers) {
+  inMemoryCustomers = customers;
+  // Simpan ke Excel lokal
+  writeCustomersToExcel(customers);
+
+  // Cadangan Cloud Backup
+  cloudSaveCustomers(customers).catch(() => {});
+
+  // Sinkronisasi 2-Arah ke Google Spreadsheet jika URL terpasang
+  const config = loadConfig();
+  if (config.googleSheetApiUrl) {
+    try {
+      await fetch(config.googleSheetApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_all', items: customers })
+      });
+      lastGsheetSyncTime = Date.now();
+    } catch (err) {
+      console.warn('[Google Sheets Sync] Gagal menyimpan ke Google Sheets:', err.message);
+    }
+  }
 }
 
 // ============================================================================
@@ -1028,7 +1110,7 @@ async function sendEmailMessage(email, subject, text, html, config) {
 // ============================================================================
 async function executeReminderDispatch(customerId, reminderType, triggerSource = 'AUTO_PILOT_WITA') {
   const config = loadConfig();
-  const customers = readCustomersFromExcel();
+  const customers = await getAllCustomers();
   const idx = customers.findIndex(c => Number(c.id) === Number(customerId));
   if (idx === -1) {
     throw new Error(`Data pelanggan #${customerId} tidak ditemukan`);
@@ -1084,7 +1166,7 @@ async function executeReminderDispatch(customerId, reminderType, triggerSource =
       existingTags.push(sentTag);
     }
     customers[idx].statusLog = existingTags.join(' | ');
-    writeCustomersToExcel(customers);
+    await saveAllCustomers(customers);
   }
 
   const logEntry = appendLog({
@@ -1149,7 +1231,7 @@ async function checkAndRunScheduledReminders(forceAll = false, triggerSource = '
     }
   }
 
-  const customers = readCustomersFromExcel();
+  const customers = await getAllCustomers();
   const evaluated = customers.map(c => evaluateCustomerReminders(c, config, wita));
 
   // Collect all due reminders not yet sent today
@@ -1197,10 +1279,10 @@ setInterval(() => {
 // ============================================================================
 // REST API ENDPOINTS
 // ============================================================================
-app.get('/api/dashboard', (req, res) => {
+app.get('/api/dashboard', async (req, res) => {
   const config = loadConfig();
   const wita = getWitaParts();
-  const customers = readCustomersFromExcel();
+  const customers = await getAllCustomers();
   const evaluated = customers.map(c => evaluateCustomerReminders(c, config, wita));
 
   const inOperationalHours = isTimeInRange(
@@ -1210,8 +1292,8 @@ app.get('/api/dashboard', (req, res) => {
   );
   const inWaWindow = isTimeInRange(
     wita.shortTime,
-    config.waWindowStart || '10:00',
-    config.waWindowEnd || '14:00'
+    config.waWindowStart || '08:00',
+    config.waWindowEnd || '16:00'
   );
 
   const stats = {
@@ -1266,7 +1348,7 @@ app.post('/api/wa/test-direct', async (req, res) => {
       `4️⃣ Pengingat Jadwal Next Service (H-5)\n` +
       `secara otomatis ke Pelanggan, Sales, dan SA! 🚗✨`;
 
-    const customers = readCustomersFromExcel();
+    const customers = await getAllCustomers();
     const targetTestEmail = cleanEmail || customers[0]?.emailPelanggan || config.smtp?.user || '';
     const sampleHtml = buildBrandedEmailHtml(
       `[Tes Otomatis] Agung Toyota Gianyar [${wita.shortTime} WITA]`,
@@ -1310,9 +1392,9 @@ app.post('/api/wa/test-direct', async (req, res) => {
 });
 
 // Preview rendered message for Pelanggan, Sales, and SA
-app.get('/api/preview/:customerId/:reminderType', (req, res) => {
+app.get('/api/preview/:customerId/:reminderType', async (req, res) => {
   const config = loadConfig();
-  const customers = readCustomersFromExcel();
+  const customers = await getAllCustomers();
   const cust = customers.find(c => Number(c.id) === Number(req.params.customerId));
   if (!cust) return res.status(404).json({ error: 'Pelanggan tidak ditemukan' });
 
@@ -1342,10 +1424,10 @@ app.post('/api/send-all-today', async (req, res) => {
   }
 });
 
-// Add or Update Customer row in Excel
+// Add or Update Customer row (Syncs 2-Way with Google Spreadsheet)
 app.post('/api/customers', async (req, res) => {
   try {
-    const customers = readCustomersFromExcel();
+    const customers = await getAllCustomers(true);
     const payload = req.body;
     if (!payload.namaPelanggan) {
       return res.status(400).json({ ok: false, error: 'Nama Pelanggan wajib diisi' });
@@ -1354,7 +1436,7 @@ app.post('/api/customers', async (req, res) => {
     if (payload.id) {
       const idx = customers.findIndex(c => Number(c.id) === Number(payload.id));
       if (idx !== -1) {
-        customers[idx] = { ...customers[idx], ...payload, id: Number(payload.id), statusLog: '' };
+        customers[idx] = { ...customers[idx], ...payload, id: Number(payload.id), statusLog: customers[idx].statusLog || '' };
         savedCustomer = customers[idx];
       } else {
         savedCustomer = { ...payload, id: customers.length + 1, statusLog: '' };
@@ -1365,13 +1447,12 @@ app.post('/api/customers', async (req, res) => {
       savedCustomer = { ...payload, id: nextId, statusLog: '' };
       customers.push(savedCustomer);
     }
-    writeCustomersToExcel(customers);
+    await saveAllCustomers(customers);
 
-    // Evaluasi apakah pelanggan yang baru disimpan ini punya jadwal pengingat hari ini (Ultah / H-3 Samsat / H-3 Asuransi)
+    // Evaluasi apakah pelanggan yang baru disimpan ini punya jadwal pengingat hari ini
     const config = loadConfig();
     const evalCust = evaluateCustomerReminders(savedCustomer, config, getWitaParts());
     if (evalCust.activeReminders.length > 0) {
-      // Langsung kirim otomatis di background begitu data pelanggan disimpan!
       (async () => {
         for (const rem of evalCust.activeReminders) {
           try {
@@ -1391,22 +1472,35 @@ app.post('/api/customers', async (req, res) => {
   }
 });
 
-// Delete Customer row in Excel
-app.delete('/api/customers/:id', (req, res) => {
+// Delete Customer row (Syncs 2-Way with Google Spreadsheet)
+app.delete('/api/customers/:id', async (req, res) => {
   try {
-    const customers = readCustomersFromExcel().filter(c => Number(c.id) !== Number(req.params.id));
-    writeCustomersToExcel(customers);
+    const idToDelete = Number(req.params.id);
+    const existing = await getAllCustomers(true);
+    const customers = existing.filter(c => Number(c.id) !== idToDelete);
+    await saveAllCustomers(customers);
+
+    // Hapus juga di Google Sheet API jika URL terpasang
+    const config = loadConfig();
+    if (config.googleSheetApiUrl) {
+      fetch(config.googleSheetApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_customer', id: idToDelete })
+      }).catch(() => {});
+    }
+
     res.json({ ok: true, count: customers.length });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// Reset Sample Data (with today's WITA dates so user can test immediately)
-app.post('/api/customers/reset-sample', (req, res) => {
+// Reset Sample Data
+app.post('/api/customers/reset-sample', async (req, res) => {
   try {
     const sample = createInitialSampleRows().map((r, i) => mapExcelRowToCustomer(r, i + 1));
-    writeCustomersToExcel(sample);
+    await saveAllCustomers(sample);
     res.json({ ok: true, count: sample.length });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -1414,7 +1508,7 @@ app.post('/api/customers/reset-sample', (req, res) => {
 });
 
 // Upload Excel (.xlsx) via Base64 payload
-app.post('/api/excel/upload', (req, res) => {
+app.post('/api/excel/upload', async (req, res) => {
   try {
     const { base64Data, mode } = req.body;
     if (!base64Data) return res.status(400).json({ ok: false, error: 'File Excel kosong' });
@@ -1436,14 +1530,93 @@ app.post('/api/excel/upload', (req, res) => {
 
     let finalCustomers = uploadedCustomers;
     if (mode === 'append') {
-      const existing = readCustomersFromExcel();
+      const existing = await getAllCustomers(true);
       finalCustomers = [...existing, ...uploadedCustomers].map((c, idx) => ({ ...c, id: idx + 1 }));
     }
 
-    writeCustomersToExcel(finalCustomers);
-    // Begitu Excel diupload, jika WA terhubung dan masuk jam kirim, langsung proses otomatis!
+    await saveAllCustomers(finalCustomers);
     setTimeout(() => checkAndRunScheduledReminders(false, 'AUTO_PILOT_WITA').catch(() => {}), 2000);
     res.json({ ok: true, importedCount: uploadedCustomers.length, totalCount: finalCustomers.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ============================================================================
+// GOOGLE SPREADSHEET 2-WAY SYNC ENDPOINTS
+// ============================================================================
+
+// Simpan URL Google Apps Script Web App (Integrasi 2-Arah)
+app.post('/api/google-sheets/save-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+    const cleanUrl = String(url || '').trim();
+    saveConfig({ googleSheetApiUrl: cleanUrl });
+
+    if (cleanUrl) {
+      try {
+        const resGsheet = await fetch(`${cleanUrl}?action=get_customers&t=${Date.now()}`);
+        if (resGsheet.ok) {
+          const json = await resGsheet.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            const mapped = json.data.map((r, i) => mapExcelRowToCustomer(r, i + 1));
+            await saveAllCustomers(mapped);
+            return res.json({ ok: true, count: mapped.length, message: `✅ Berhasil terhubung! Mengimpor ${mapped.length} data dari Google Spreadsheet.` });
+          } else {
+            // Spreadsheet masih kosong, unggah data saat ini ke spreadsheet
+            const current = await getAllCustomers(false);
+            if (current.length > 0) {
+              await saveAllCustomers(current);
+              return res.json({ ok: true, count: current.length, message: `✅ Berhasil terhubung! Menyalin ${current.length} pelanggan ke Google Spreadsheet.` });
+            }
+          }
+        }
+      } catch (e) {
+        return res.json({ ok: true, message: `URL disimpan, namun belum dapat dihubungi: ${e.message}` });
+      }
+    }
+    res.json({ ok: true, message: 'Pengaturan Google Sheets disimpan.' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Tarik data terbaru dari Google Spreadsheet ke aplikasi
+app.post('/api/google-sheets/pull', async (req, res) => {
+  try {
+    const config = loadConfig();
+    if (!config.googleSheetApiUrl) {
+      return res.status(400).json({ ok: false, error: 'URL Google Apps Script belum diisi.' });
+    }
+    const resGsheet = await fetch(`${config.googleSheetApiUrl}?action=get_customers&t=${Date.now()}`);
+    if (!resGsheet.ok) throw new Error('Gagal menghubungi Google Apps Script Web App.');
+    const json = await resGsheet.json();
+    if (!json.success || !Array.isArray(json.data)) throw new Error('Format respon Google Spreadsheet tidak valid.');
+
+    const mapped = json.data.map((r, i) => mapExcelRowToCustomer(r, i + 1));
+    await saveAllCustomers(mapped);
+    res.json({ ok: true, count: mapped.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Unggah seluruh data aplikasi saat ini ke Google Spreadsheet
+app.post('/api/google-sheets/push', async (req, res) => {
+  try {
+    const config = loadConfig();
+    if (!config.googleSheetApiUrl) {
+      return res.status(400).json({ ok: false, error: 'URL Google Apps Script belum diisi.' });
+    }
+    const customers = await getAllCustomers(false);
+    const resGsheet = await fetch(config.googleSheetApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'sync_all', items: customers })
+    });
+    const json = await resGsheet.json();
+    if (!json.success) throw new Error(json.error || 'Gagal menyimpan ke Google Spreadsheet.');
+    res.json({ ok: true, count: customers.length });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

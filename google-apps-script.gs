@@ -1,130 +1,257 @@
 /**
  * ============================================================================
- * AGUNG TOYOTA GIANYAR — GOOGLE SHEETS + GMAIL & WA AUTO REMINDER
- * Design by MDP
+ * AGUNG TOYOTA GIANYAR — GOOGLE APPS SCRIPT 2-WAY DATABASE SYNC (Design by MDP)
  * ============================================================================
- * Cara Pakai di Google Sheets (Opsional jika ingin jalan langsung di Cloud Google):
- * 1. Buka Google Sheets Anda -> Menu "Ekstensi" -> "Apps Script"
- * 2. Tempel kode ini, lalu simpan.
- * 3. Buka menu "Pemicu" (Triggers / Ikon Jam di kiri):
- *    - Pilih fungsi: jalankanPengingatHarianWITA
- *    - Sumber acara: Dipicu waktu (Time-driven) -> Timer harian -> 10.00 hingga 11.00 WITA
+ * Pasang skrip ini di Google Sheets Anda:
+ * 1. Buka Google Spreadsheet baru di Google Drive Anda.
+ * 2. Klik menu: Ekstensi (Extensions) -> Apps Script.
+ * 3. Hapus semua kode yang ada, lalu tempel SELURUH KODE ini.
+ * 4. Klik "Simpan" (ikon disket).
+ * 5. Klik tombol biru "Terapkan" (Deploy) di kanan atas:
+ *    - Pilih "Penerapan baru" (New deployment).
+ *    - Pilih jenis: "Aplikasi Web" (Web app).
+ *    - Deskripsi: "Agung Toyota Gianyar API"
+ *    - Jalankan sebagai (Execute as): "Saya" (Me / email Anda).
+ *    - Yang memiliki akses (Who has access): "Siapa saja" (Anyone).
+ * 6. Klik "Terapkan" (Deploy) & Izinkan Akses (Authorize access).
+ * 7. Salin URL Aplikasi Web (berakhiran /exec) dan tempelkan ke aplikasi Agung Toyota Gianyar.
+ * ============================================================================
  */
 
-const CONFIG_ATG = {
-  DEALER_NAME: 'Agung Toyota Gianyar',
-  DESIGN_CREDIT: 'Design by MDP',
-  TIMEZONE: 'Asia/Makassar', // WITA (UTC+8)
-  WA_START_HOUR: 10,         // Mulai kirim WA jam 10:00 WITA
-  WA_END_HOUR: 14,           // Batas akhir jam 14:00 WITA
-  WA_GATEWAY_TOKEN: ''       // Opsional: Isi jika menggunakan Fonnte di Cloud
-};
+const HEADERS = [
+  'No',
+  'Nama Pelanggan',
+  'No. WA Pelanggan',
+  'Email Pelanggan',
+  'Tipe Mobil',
+  'No. Polisi',
+  'Tgl Ulang Tahun',
+  'Tgl Habis Samsat',
+  'Tgl Expired Asuransi',
+  'Tgl Next Service',
+  'Nama Sales',
+  'No. WA Sales',
+  'Email Sales',
+  'Nama SA',
+  'No. WA SA',
+  'Email SA',
+  'Status Log Pengiriman'
+];
 
-function jalankanPengingatHarianWITA() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const rows = sheet.getDataRange().getValues();
-  if (rows.length < 2) return;
-
-  const now = new Date();
-  const todayStr = Utilities.formatDate(now, CONFIG_ATG.TIMEZONE, 'yyyy-MM-dd');
-  const todayMonthDay = Utilities.formatDate(now, CONFIG_ATG.TIMEZONE, 'MM-dd');
-  const currentHour = Number(Utilities.formatDate(now, CONFIG_ATG.TIMEZONE, 'HH'));
-
-  // Pastikan berjalan di rentang 10:00 - 14:00 WITA
-  if (currentHour < CONFIG_ATG.WA_START_HOUR || currentHour > CONFIG_ATG.WA_END_HOUR) {
-    Logger.log('Di luar jam pengiriman 10:00 - 14:00 WITA.');
-    return;
+function getOrCreateCustomerSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Data Pelanggan');
+  if (!sheet) {
+    sheet = ss.getSheets()[0];
+    sheet.setName('Data Pelanggan');
   }
-
-  const hPlus3Date = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-  const hPlus3Str = Utilities.formatDate(hPlus3Date, CONFIG_ATG.TIMEZONE, 'yyyy-MM-dd');
-
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const namaPelanggan = String(row[1] || '').trim();
-    if (!namaPelanggan) continue;
-
-    const waPelanggan = bersihkanNomorWA(row[2]);
-    const emailPelanggan = String(row[3] || '').trim();
-    const tipeMobil = String(row[4] || 'Toyota').trim();
-    const noPolisi = String(row[5] || '-').trim();
-    const tglUltah = formatTgl(row[6]);
-    const tglSamsat = formatTgl(row[7]);
-    const tglAsuransi = formatTgl(row[8]);
-    const namaSales = String(row[9] || 'Sales Agung Toyota Gianyar').trim();
-    const waSales = bersihkanNomorWA(row[10]);
-    const emailSales = String(row[11] || '').trim();
-    const namaSA = String(row[12] || 'Service Advisor Agung Toyota Gianyar').trim();
-    const waSA = bersihkanNomorWA(row[13]);
-    const emailSA = String(row[14] || '').trim();
-    let statusLog = String(row[15] || '').trim();
-
-    const data = {
-      namaPelanggan, waPelanggan, emailPelanggan, tipeMobil, noPolisi,
-      tglUltah, tglSamsat, tglAsuransi, namaSales, waSales, emailSales, namaSA, waSA, emailSA
-    };
-
-    // 1. Cek Ulang Tahun (Hari H)
-    if (tglUltah && tglUltah.slice(5, 10) === todayMonthDay && !statusLog.includes('ULTAH:' + todayStr)) {
-      kirimPaketNotifikasi('ULTAH', data);
-      statusLog += (statusLog ? ' | ' : '') + 'ULTAH:' + todayStr;
-    }
-
-    // 2. Cek Samsat Kendaraan (H-3)
-    if (tglSamsat === hPlus3Str && !statusLog.includes('SAMSAT:' + todayStr)) {
-      kirimPaketNotifikasi('SAMSAT', data);
-      statusLog += (statusLog ? ' | ' : '') + 'SAMSAT:' + todayStr;
-    }
-
-    // 3. Cek Expired Asuransi (H-3)
-    if (tglAsuransi === hPlus3Str && !statusLog.includes('ASURANSI:' + todayStr)) {
-      kirimPaketNotifikasi('ASURANSI', data);
-      statusLog += (statusLog ? ' | ' : '') + 'ASURANSI:' + todayStr;
-    }
-
-    sheet.getRange(i + 1, 16).setValue(statusLog);
+  
+  // Pastikan header ada di baris 1
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(HEADERS);
+    const headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
+    headerRange.setBackground('#dc2626').setFontColor('#ffffff').setFontWeight('bold');
+    sheet.setFrozenRows(1);
   }
+  return sheet;
 }
 
-function kirimPaketNotifikasi(tipe, d) {
-  let subjekCust = '';
-  let pesanCust = '';
-  let subjekStaff = '';
-  let pesanStaff = '';
-
-  if (tipe === 'ULTAH') {
-    subjekCust = `Selamat Ulang Tahun Bapak/Ibu ${d.namaPelanggan}! - Agung Toyota Gianyar`;
-    pesanCust = `Selamat Ulang Tahun Bapak/Ibu *${d.namaPelanggan}*! 🎂🎉\n\nKami keluarga besar *Agung Toyota Gianyar* mengucapkan selamat ulang tahun. Terima kasih telah mempercayakan kendaraan *${d.tipeMobil}* (*${d.noPolisi}*) kepada kami.\n• Sales: ${d.namaSales} (${d.waSales})\n• SA: ${d.namaSA} (${d.waSA})\n\n*Agung Toyota Gianyar* — _Design by MDP_`;
-    subjekStaff = `[Reminder Ulang Tahun Pelanggan] ${d.namaPelanggan} (${d.noPolisi})`;
-    pesanStaff = `🔔 *[REMINDER ULANG TAHUN PELANGGAN - AGUNG TOYOTA GIANYAR]*\nPelanggan *${d.namaPelanggan}* (${d.tipeMobil} - ${d.noPolisi}) berulang tahun hari ini.\nKlik untuk ucapkan selamat: https://wa.me/${d.waPelanggan}`;
-  } else if (tipe === 'SAMSAT') {
-    subjekCust = `Pengingat H-3 Samsat/STNK ${d.tipeMobil} (${d.noPolisi}) - Agung Toyota Gianyar`;
-    pesanCust = `Halo Bapak/Ibu *${d.namaPelanggan}*,\nMasa berlaku Samsat/STNK kendaraan *${d.tipeMobil}* (*${d.noPolisi}*) akan jatuh tempo 3 hari lagi pada *${d.tglSamsat}*.\nHubungi SA (${d.namaSA} - ${d.waSA}) atau Sales (${d.namaSales} - ${d.waSales}) bila memerlukan bantuan.\n\n*Agung Toyota Gianyar* — _Design by MDP_`;
-    subjekStaff = `[Reminder H-3 Samsat] ${d.namaPelanggan} (${d.noPolisi})`;
-    pesanStaff = `🔔 *[REMINDER H-3 SAMSAT - AGUNG TOYOTA GIANYAR]*\nSamsat kendaraan *${d.namaPelanggan}* (${d.tipeMobil} - ${d.noPolisi}) jatuh tempo pada ${d.tglSamsat}.\nFollow-up WA: https://wa.me/${d.waPelanggan}`;
-  } else if (tipe === 'ASURANSI') {
-    subjekCust = `Pengingat H-3 Expired Asuransi ${d.tipeMobil} (${d.noPolisi}) - Agung Toyota Gianyar`;
-    pesanCust = `Halo Bapak/Ibu *${d.namaPelanggan}*,\nMasa berlaku Asuransi kendaraan *${d.tipeMobil}* (*${d.noPolisi}*) akan berakhir 3 hari lagi pada *${d.tglAsuransi}*.\nHubungi Sales (${d.namaSales} - ${d.waSales}) atau SA (${d.namaSA} - ${d.waSA}) untuk bantuan perpanjangan.\n\n*Agung Toyota Gianyar* — _Design by MDP_`;
-    subjekStaff = `[Reminder H-3 Asuransi] ${d.namaPelanggan} (${d.noPolisi})`;
-    pesanStaff = `🔔 *[REMINDER H-3 ASURANSI - AGUNG TOYOTA GIANYAR]*\nAsuransi mobil *${d.namaPelanggan}* (${d.tipeMobil} - ${d.noPolisi}) berakhir pada ${d.tglAsuransi}.\nFollow-up WA: https://wa.me/${d.waPelanggan}`;
-  }
-
-  // Kirim Email ke Pelanggan, Sales, dan SA
-  if (d.emailPelanggan) MailApp.sendEmail(d.emailPelanggan, subjekCust, pesanCust);
-  if (d.emailSales) MailApp.sendEmail(d.emailSales, subjekStaff, pesanStaff);
-  if (d.emailSA && d.emailSA !== d.emailSales) MailApp.sendEmail(d.emailSA, subjekStaff, pesanStaff);
-}
-
-function formatTgl(val) {
+function normalizeDateVal(val) {
   if (!val) return '';
   if (val instanceof Date) {
-    return Utilities.formatDate(val, CONFIG_ATG.TIMEZONE, 'yyyy-MM-dd');
+    return Utilities.formatDate(val, 'Asia/Makassar', 'yyyy-MM-dd');
   }
-  return String(val).trim();
+  const str = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) {
+    return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+  }
+  return str;
 }
 
-function bersihkanNomorWA(hp) {
-  let d = String(hp || '').replace(/[^0-9]/g, '');
-  if (d.startsWith('08')) d = '62' + d.slice(1);
-  return d;
+function cleanPhoneVal(val) {
+  if (!val) return '';
+  let digits = String(val).replace(/[^0-9]/g, '');
+  if (digits.startsWith('08')) digits = '62' + digits.slice(1);
+  else if (digits.startsWith('8')) digits = '62' + digits;
+  return digits;
+}
+
+function readAllCustomersFromSheet() {
+  const sheet = getOrCreateCustomerSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const values = sheet.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+  const customers = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const r = values[i];
+    const nama = String(r[1] || '').trim();
+    if (!nama) continue;
+
+    customers.push({
+      id: Number(r[0]) || (i + 1),
+      namaPelanggan: nama,
+      waPelanggan: cleanPhoneVal(r[2]),
+      emailPelanggan: String(r[3] || '').trim(),
+      tipeMobil: String(r[4] || '').trim(),
+      noPolisi: String(r[5] || '').trim(),
+      tglUlangTahun: normalizeDateVal(r[6]),
+      tglSamsat: normalizeDateVal(r[7]),
+      tglAsuransi: normalizeDateVal(r[8]),
+      tglService: normalizeDateVal(r[9]),
+      namaSales: String(r[10] || '').trim(),
+      waSales: cleanPhoneVal(r[11]),
+      emailSales: String(r[12] || '').trim(),
+      namaSA: String(r[13] || '').trim(),
+      waSA: cleanPhoneVal(r[14]),
+      emailSA: String(r[15] || '').trim(),
+      statusLog: String(r[16] || '').trim()
+    });
+  }
+  return customers;
+}
+
+function syncAllCustomersToSheet(customers) {
+  const sheet = getOrCreateCustomerSheet();
+  
+  // Hapus semua baris data lama (pertahankan baris 1 header)
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.deleteRows(2, lastRow - 1);
+  }
+
+  if (!Array.isArray(customers) || customers.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  const rows = customers.map((c, idx) => [
+    Number(c.id) || (idx + 1),
+    String(c.namaPelanggan || ''),
+    String(c.waPelanggan || ''),
+    String(c.emailPelanggan || ''),
+    String(c.tipeMobil || ''),
+    String(c.noPolisi || ''),
+    String(c.tglUlangTahun || ''),
+    String(c.tglSamsat || ''),
+    String(c.tglAsuransi || ''),
+    String(c.tglService || ''),
+    String(c.namaSales || ''),
+    String(c.waSales || ''),
+    String(c.emailSales || ''),
+    String(c.namaSA || ''),
+    String(c.waSA || ''),
+    String(c.emailSA || ''),
+    String(c.statusLog || '')
+  ]);
+
+  sheet.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
+  return { success: true, count: rows.length };
+}
+
+function upsertCustomerToSheet(cust) {
+  const sheet = getOrCreateCustomerSheet();
+  const customers = readAllCustomersFromSheet();
+  const targetId = Number(cust.id);
+  const targetNopol = String(cust.noPolisi || '').toUpperCase().trim();
+
+  let existingIndex = -1;
+  if (targetId) {
+    existingIndex = customers.findIndex(c => Number(c.id) === targetId);
+  }
+  if (existingIndex === -1 && targetNopol) {
+    existingIndex = customers.findIndex(c => String(c.noPolisi || '').toUpperCase().trim() === targetNopol);
+  }
+
+  if (existingIndex !== -1) {
+    customers[existingIndex] = { ...customers[existingIndex], ...cust };
+  } else {
+    const nextId = customers.reduce((max, c) => Math.max(max, Number(c.id) || 0), 0) + 1;
+    customers.push({ ...cust, id: cust.id ? Number(cust.id) : nextId });
+  }
+
+  syncAllCustomersToSheet(customers);
+  return { success: true, count: customers.length };
+}
+
+function deleteCustomerFromSheet(id, nopol) {
+  const sheet = getOrCreateCustomerSheet();
+  let customers = readAllCustomersFromSheet();
+  const numId = Number(id);
+  const cleanNop = String(nopol || '').toUpperCase().trim();
+
+  customers = customers.filter(c => {
+    if (numId && Number(c.id) === numId) return false;
+    if (cleanNop && String(c.noPolisi || '').toUpperCase().trim() === cleanNop) return false;
+    return true;
+  });
+
+  syncAllCustomersToSheet(customers);
+  return { success: true, count: customers.length };
+}
+
+// ============================================================================
+// WEB APP API (doGet & doPost)
+// ============================================================================
+
+function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) || 'get_customers';
+  
+  if (action === 'ping') {
+    return createJsonResponse({ success: true, message: 'Agung Toyota Gianyar Sheet API Ready', timestamp: new Date().toISOString() });
+  }
+
+  const customers = readAllCustomersFromSheet();
+  return createJsonResponse({
+    success: true,
+    action: 'get_customers',
+    count: customers.length,
+    data: customers
+  });
+}
+
+function doPost(e) {
+  try {
+    let payload = {};
+    if (e && e.postData && e.postData.contents) {
+      payload = JSON.parse(e.postData.contents);
+    }
+
+    const action = payload.action || 'sync_all';
+
+    if (action === 'sync_all' || action === 'save_all') {
+      const items = payload.items || payload.customers || [];
+      const res = syncAllCustomersToSheet(items);
+      return createJsonResponse(res);
+    }
+
+    if (action === 'upsert_customer' || action === 'add_customer' || action === 'save_customer') {
+      const item = payload.customer || payload.item || payload;
+      const res = upsertCustomerToSheet(item);
+      return createJsonResponse(res);
+    }
+
+    if (action === 'delete_customer' || action === 'remove_customer') {
+      const id = payload.id;
+      const nopol = payload.noPolisi || payload.nopol;
+      const res = deleteCustomerFromSheet(id, nopol);
+      return createJsonResponse(res);
+    }
+
+    if (action === 'get_customers') {
+      const customers = readAllCustomersFromSheet();
+      return createJsonResponse({ success: true, count: customers.length, data: customers });
+    }
+
+    return createJsonResponse({ success: false, error: 'Aksi tidak dikenali: ' + action });
+  } catch (err) {
+    return createJsonResponse({ success: false, error: err.message });
+  }
+}
+
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
