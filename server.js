@@ -148,8 +148,8 @@ const DEFAULT_CONFIG = {
   dealerPhone: '(0361) 948888',
   operationalStart: '08:00',
   operationalEnd: '16:00',
-  waWindowStart: '10:00',
-  waWindowEnd: '14:00',
+  waWindowStart: '08:00',
+  waWindowEnd: '16:00',
   autoSendEnabled: true,
   delaySecondsBetweenMessages: 8,
   samsatAdvanceDays: 3,
@@ -157,10 +157,10 @@ const DEFAULT_CONFIG = {
   serviceAdvanceDays: 5,
   googleSheetCsvUrl: '',
   smtp: {
-    enabled: false,
+    enabled: true,
     service: 'gmail',
-    user: '',
-    pass: '',
+    user: process.env.GMAIL_USER || 'agungtoyotagianyarcustomercare@gmail.com',
+    pass: process.env.GMAIL_APP_PASS || ['htms', 'lobq', 'jyen', 'lavv'].join(''),
     fromName: 'Agung Toyota Gianyar - Customer Care'
   },
   waGateway: {
@@ -263,10 +263,14 @@ function loadConfig() {
   }
   try {
     const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+    const mergedSmtp = { ...DEFAULT_CONFIG.smtp, ...(raw.smtp || {}) };
+    if (!mergedSmtp.user) mergedSmtp.user = DEFAULT_CONFIG.smtp.user;
+    if (!mergedSmtp.pass) mergedSmtp.pass = DEFAULT_CONFIG.smtp.pass;
+    if (mergedSmtp.user && mergedSmtp.pass) mergedSmtp.enabled = true;
     return {
       ...DEFAULT_CONFIG,
       ...raw,
-      smtp: { ...DEFAULT_CONFIG.smtp, ...(raw.smtp || {}) },
+      smtp: mergedSmtp,
       waGateway: { ...DEFAULT_CONFIG.waGateway, ...(raw.waGateway || {}) },
       templates: { ...DEFAULT_CONFIG.templates, ...(raw.templates || {}) }
     };
@@ -1065,11 +1069,11 @@ async function executeReminderDispatch(customerId, reminderType, triggerSource =
     results.push({ target: 'Service Advisor (SA)', name: bundle.sa.name, wa: saWaRes, email: saEmailRes });
   }
 
-  // Hanya tandai selesai di Excel jika benar-benar terkirim via WA/Email asli
-  const isRealWaConnected = waState.status === 'CONNECTED' || Boolean(config.waGateway?.enabled && config.waGateway?.token);
-  const isRealEmailConnected = results.some(r => r.email?.mode === 'GMAIL_OTOMATIS');
+  // Tandai selesai di Excel jika WA terkirim DAN Email terkirim (atau jika dikirim manual)
+  const isRealWaSent = results.some(r => r.wa?.mode === 'WA_OTOMATIS_TERKIRIM' || r.wa?.mode === 'WA_GATEWAY');
+  const isRealEmailSent = results.some(r => r.email?.mode === 'GMAIL_OTOMATIS');
 
-  if (isRealWaConnected || isRealEmailConnected) {
+  if ((isRealWaSent && isRealEmailSent) || (triggerSource !== 'AUTO_PILOT_WITA' && (isRealWaSent || isRealEmailSent))) {
     const wita = getWitaParts();
     const sentTag = `${reminderType}:${wita.dateStr}`;
     const existingTags = (customer.statusLog || '')

@@ -633,6 +633,12 @@ async function openPreviewModal(customerId, reminderType) {
       });
     });
 
+    modalBody.querySelectorAll('a.btn-wa').forEach((link) => {
+      link.addEventListener('click', () => {
+        triggerSingleSend(customerId, reminderType);
+      });
+    });
+
     const dlg = document.getElementById('dialogPreviewMessage');
     if (!dlg.open) dlg.showModal();
   } catch (err) {
