@@ -10,7 +10,11 @@ let appState = {
   logs: [],
   selectedTypeFilter: 'ALL',
   searchQuery: '',
-  activePreviewTarget: null // { customerId, reminderType }
+  activePreviewTarget: null, // { customerId, reminderType }
+  pagination: {
+    page: 1,
+    perPage: 15
+  }
 };
 
 // 1. Mandatory Light-Dismiss Fallback for <dialog closedby="any">
@@ -169,6 +173,24 @@ function renderHeaderAndStats(data) {
   if (summaryCountEl) {
     summaryCountEl.textContent = data.stats.totalCustomers ?? (appState.customers?.length || 0);
   }
+
+  // Sync Sidebar Drawer Badges
+  const sbCust = document.getElementById('sidebarBadgeCustomers');
+  if (sbCust) sbCust.textContent = data.stats.totalCustomers ?? (appState.customers?.length || 0);
+  const sbPending = document.getElementById('sidebarBadgePending');
+  if (sbPending) sbPending.textContent = data.stats.totalPendingToday ?? 0;
+  const sbWa = document.getElementById('sidebarBadgeWa');
+  if (sbWa) {
+    const isConn = data.waState?.status === 'CONNECTED';
+    sbWa.textContent = isConn ? 'ONLINE' : 'SCAN QR';
+    sbWa.className = isConn ? 'nav-badge badge-emerald' : 'nav-badge badge-amber';
+  }
+  const sbGsheet = document.getElementById('sidebarBadgeGsheet');
+  if (sbGsheet) {
+    sbGsheet.textContent = isGsheetConnected ? '2-Arah ✓' : 'Excel';
+    sbGsheet.className = isConnGsheet => isConnGsheet ? 'nav-badge badge-sky' : 'nav-badge badge-amber';
+    sbGsheet.className = isGsheetConnected ? 'nav-badge badge-sky' : 'nav-badge badge-amber';
+  }
 }
 
 function renderTodayReminders() {
@@ -290,6 +312,7 @@ function renderTodayReminders() {
 
 function renderCustomerTable() {
   const tbody = document.getElementById('customerTableBody');
+  if (!tbody) return;
   const q = appState.searchQuery.trim().toLowerCase();
 
   const filtered = appState.customers.filter((c) => {
@@ -305,92 +328,136 @@ function renderCustomerTable() {
     ].some(v => String(v || '').toLowerCase().includes(q));
   });
 
-  if (filtered.length === 0) {
+  const totalCount = filtered.length;
+  const perPage = appState.pagination.perPage === 'ALL' ? totalCount : Number(appState.pagination.perPage || 15);
+  const totalPages = Math.max(1, Math.ceil(totalCount / (perPage || 1)));
+
+  if (appState.pagination.page > totalPages) {
+    appState.pagination.page = totalPages;
+  }
+  const currentPage = appState.pagination.page;
+  const startIndex = (currentPage - 1) * perPage;
+  const endIndex = Math.min(startIndex + perPage, totalCount);
+  const pageRows = (appState.pagination.perPage === 'ALL') ? filtered : filtered.slice(startIndex, endIndex);
+
+  // Update pagination info & controls
+  const infoEl = document.getElementById('paginationInfo');
+  if (infoEl) {
+    infoEl.innerHTML = totalCount === 0
+      ? 'Tidak ada data pelanggan'
+      : `Menampilkan <strong>${startIndex + 1}–${endIndex}</strong> dari <strong>${totalCount}</strong> pelanggan`;
+  }
+
+  const btnPrev = document.getElementById('btnPrevPage');
+  const btnNext = document.getElementById('btnNextPage');
+  if (btnPrev) btnPrev.disabled = currentPage <= 1;
+  if (btnNext) btnNext.disabled = currentPage >= totalPages;
+
+  const pagesContainer = document.getElementById('paginationPages');
+  if (pagesContainer) {
+    let pagesHtml = '';
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage < maxVisible - 1) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    for (let p = startPage; p <= endPage; p++) {
+      pagesHtml += `<button type="button" class="page-btn ${p === currentPage ? 'active' : ''}" data-goto-page="${p}">${p}</button>`;
+    }
+    pagesContainer.innerHTML = pagesHtml;
+  }
+
+  if (pageRows.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="11" style="text-align: center; padding: 28px; color: var(--slate-600);">
-          Data pelanggan tidak ditemukan. Silakan tambah pelanggan atau upload file Excel.
+        <td colspan="10" style="text-align: center; padding: 28px; color: var(--slate-600);">
+          Data pelanggan tidak ditemukan. Silakan tambah pelanggan atau tarik dari Google Sheets.
         </td>
       </tr>
     `;
     return;
   }
 
-  tbody.innerHTML = filtered.map((c, idx) => {
+  tbody.innerHTML = pageRows.map((c, idx) => {
+    const globalIdx = startIndex + idx + 1;
+
     const bdayBadge = c.isBirthdayToday
-      ? `<span class="rem-badge ULTAH" style="margin-top:4px;">🎂 Hari Ini Ultah!</span>`
+      ? `<span class="mini-tag bday">🎂 HARI INI</span>`
       : '';
 
-    const samsatHint = c.samsatDiff === 3
-      ? `<span class="rem-badge SAMSAT" style="margin-top:4px;">🚗 H-3 Hari Ini!</span>`
-      : c.samsatDiff !== null && c.samsatDiff >= 0 && c.samsatDiff <= 14
-        ? `<div style="font-size:11px;color:#b45309;font-weight:700;">H-${c.samsatDiff} hari lagi</div>`
+    const samsatBadge = c.samsatDiff === 3
+      ? `<span class="mini-tag samsat">🚗 H-3</span>`
+      : (c.samsatDiff !== null && c.samsatDiff >= 0 && c.samsatDiff <= 14)
+        ? `<span class="mini-tag samsat">H-${c.samsatDiff}</span>`
         : '';
 
-    const asuransiHint = c.asuransiDiff === 3
-      ? `<span class="rem-badge ASURANSI" style="margin-top:4px;">🛡️ H-3 Hari Ini!</span>`
-      : c.asuransiDiff !== null && c.asuransiDiff >= 0 && c.asuransiDiff <= 14
-        ? `<div style="font-size:11px;color:#1d4ed8;font-weight:700;">H-${c.asuransiDiff} hari lagi</div>`
+    const asuransiBadge = c.asuransiDiff === 3
+      ? `<span class="mini-tag asuransi">🛡️ H-3</span>`
+      : (c.asuransiDiff !== null && c.asuransiDiff >= 0 && c.asuransiDiff <= 14)
+        ? `<span class="mini-tag asuransi">H-${c.asuransiDiff}</span>`
         : '';
 
     const serviceAdv = Number(appState.config.serviceAdvanceDays ?? 5);
-    const serviceHint = c.serviceDiff === serviceAdv
-      ? `<span class="rem-badge SERVICE" style="margin-top:4px;">🔧 H-${serviceAdv} Hari Ini!</span>`
-      : c.serviceDiff !== null && c.serviceDiff >= 0 && c.serviceDiff <= 14
-        ? `<div style="font-size:11px;color:#0f766e;font-weight:700;">H-${c.serviceDiff} hari lagi</div>`
+    const serviceBadge = c.serviceDiff === serviceAdv
+      ? `<span class="mini-tag service">🔧 H-${serviceAdv}</span>`
+      : (c.serviceDiff !== null && c.serviceDiff >= 0 && c.serviceDiff <= 14)
+        ? `<span class="mini-tag service">H-${c.serviceDiff}</span>`
         : '';
+
+    const waLink = c.waPelanggan ? `https://wa.me/${c.waPelanggan}` : '#';
 
     return `
       <tr>
-        <td><strong>${idx + 1}</strong></td>
+        <td style="text-align: center; color: var(--slate-500); font-weight: 700;">${globalIdx}</td>
         <td>
-          <strong>${escapeHtml(c.namaPelanggan)}</strong>
-          <div style="font-size:12px;color:var(--slate-600);">📱 ${escapeHtml(c.waPelanggan || '-')}</div>
-          <div style="font-size:11.5px;color:var(--slate-600);">✉️ ${escapeHtml(c.emailPelanggan || '-')}</div>
+          <div class="compact-cust-cell">
+            <span class="cust-name">${escapeHtml(c.namaPelanggan)}</span>
+            ${c.waPelanggan ? `<a href="${waLink}" target="_blank" rel="noopener" class="mini-wa-chip" title="Chat WhatsApp Pelanggan">📱 ${escapeHtml(c.waPelanggan)}</a>` : ''}
+          </div>
+          ${c.emailPelanggan ? `<div style="font-size:11px;color:var(--slate-500);margin-top:1px;">✉️ ${escapeHtml(c.emailPelanggan)}</div>` : ''}
         </td>
         <td>
-          <strong>${escapeHtml(c.tipeMobil)}</strong><br>
-          <span class="plate-tag">${escapeHtml(c.noPolisi)}</span>
+          <span class="compact-plate">${escapeHtml(c.noPolisi || '-')}</span>
+          <span class="compact-car-model">${escapeHtml(c.tipeMobil || '-')}</span>
         </td>
-        <td>
-          <div>${formatDateIndoShort(c.tglUlangTahun)}</div>
+        <td style="white-space: nowrap;">
+          <span>${formatDateIndoShort(c.tglUlangTahun)}</span>
           ${bdayBadge}
         </td>
-        <td>
-          <div>${formatDateIndoShort(c.tglSamsat)}</div>
-          ${samsatHint}
+        <td style="white-space: nowrap;">
+          <span>${formatDateIndoShort(c.tglSamsat)}</span>
+          ${samsatBadge}
+        </td>
+        <td style="white-space: nowrap;">
+          <span>${formatDateIndoShort(c.tglAsuransi)}</span>
+          ${asuransiBadge}
+        </td>
+        <td style="white-space: nowrap;">
+          <span>${formatDateIndoShort(c.tglService)}</span>
+          ${serviceBadge}
         </td>
         <td>
-          <div>${formatDateIndoShort(c.tglAsuransi)}</div>
-          ${asuransiHint}
-        </td>
-        <td>
-          <div>${formatDateIndoShort(c.tglService)}</div>
-          ${serviceHint}
-        </td>
-        <td>
-          <strong>${escapeHtml(c.namaSales || '-')}</strong>
-          <div style="font-size:11.5px;color:var(--slate-600);">📱 ${escapeHtml(c.waSales || '-')}</div>
-          <div style="font-size:11px;color:var(--slate-600);">${escapeHtml(c.emailSales || '')}</div>
-        </td>
-        <td>
-          <strong>${escapeHtml(c.namaSA || '-')}</strong>
-          <div style="font-size:11.5px;color:var(--slate-600);">📱 ${escapeHtml(c.waSA || '-')}</div>
-          <div style="font-size:11px;color:var(--slate-600);">${escapeHtml(c.emailSA || '')}</div>
-        </td>
-        <td>
-          <div style="font-size:11.5px;color:var(--slate-600);max-width:180px;">
-            ${c.statusLog
-              ? `<span class="sent-pill done">✓ WA &amp; Gmail Terkirim (${escapeHtml(c.statusLog)})</span>`
-              : '<span style="color:#94a3b8;">Belum ada pengiriman</span>'}
+          <div style="font-size:11.5px;font-weight:600;color:var(--slate-700);">
+            ${escapeHtml(c.namaSales || '-')}
+            <span style="color:var(--slate-400);font-weight:400;">(Sales)</span>
+          </div>
+          <div style="font-size:11px;color:var(--slate-500);">
+            ${escapeHtml(c.namaSA || '-')}
+            <span style="color:var(--slate-400);">(SA)</span>
           </div>
         </td>
-        <td>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button type="button" class="btn btn-sm btn-primary" data-action="send-single" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'SERVICE'}" title="Langsung Kirim WA & Email ke Pelanggan, Sales, dan SA">🚀 Kirim</button>
-            <button type="button" class="btn btn-sm btn-outline" data-action="edit-customer" data-id="${c.id}">✏️ Edit</button>
-            <button type="button" class="btn btn-sm btn-outline" data-action="preview" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'SERVICE'}" title="Preview & Pilih Tipe Pesan">👁️ Pesan</button>
-            <button type="button" class="btn btn-sm btn-danger" data-action="delete-customer" data-id="${c.id}">🗑️</button>
+        <td style="white-space: nowrap;">
+          ${c.statusLog
+            ? `<span class="status-dot-ok" title="${escapeHtml(c.statusLog)}">✓ Terkirim</span>`
+            : '<span style="color:#94a3b8;font-size:11px;">-</span>'}
+        </td>
+        <td style="text-align: right; white-space: nowrap;">
+          <div style="display:inline-flex;gap:4px;">
+            <button type="button" class="btn btn-sm btn-primary" data-action="send-single" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'SERVICE'}" style="padding: 4px 8px; font-size: 11.5px;" title="Langsung Kirim WA & Email">🚀</button>
+            <button type="button" class="btn btn-sm btn-outline" data-action="edit-customer" data-id="${c.id}" style="padding: 4px 8px; font-size: 11.5px;" title="Edit Data Pelanggan">✏️</button>
+            <button type="button" class="btn btn-sm btn-outline" data-action="preview" data-id="${c.id}" data-type="${c.activeReminders?.[0]?.type || 'SERVICE'}" style="padding: 4px 8px; font-size: 11.5px;" title="Preview Pesan">👁️</button>
+            <button type="button" class="btn btn-sm btn-danger" data-action="delete-customer" data-id="${c.id}" style="padding: 4px 8px; font-size: 11.5px;" title="Hapus">🗑️</button>
           </div>
         </td>
       </tr>
@@ -736,10 +803,25 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-btn').forEach((b) => {
     b.classList.toggle('active', b.getAttribute('data-tab') === tabId);
   });
+  document.querySelectorAll('.sidebar-nav-item[data-tab-nav]').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-tab-nav') === tabId);
+  });
   document.querySelectorAll('.tab-panel').forEach((p) => {
     p.classList.toggle('active', p.id === tabId);
   });
 }
+
+function toggleSidebar(open) {
+  const sidebar = document.getElementById('appSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+  const shouldOpen = typeof open === 'boolean' ? open : !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', shouldOpen);
+  if (backdrop) backdrop.classList.toggle('open', shouldOpen);
+  document.body.classList.toggle('sidebar-locked', shouldOpen);
+}
+window.toggleSidebar = toggleSidebar;
+window.switchTab = switchTab;
 
 // ============================================================================
 // INITIALIZE EVENT LISTENERS
@@ -752,6 +834,81 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchDashboard(true);
   // Poll every 3.5 seconds to update QR status & automatic sends
   setInterval(() => fetchDashboard(false), 3500);
+
+  // AccuCare-Style Sidebar Drawer Navigation
+  document.querySelectorAll('.sidebar-nav-item[data-tab-nav]').forEach((item) => {
+    item.addEventListener('click', () => {
+      const targetTab = item.getAttribute('data-tab-nav');
+      if (targetTab) {
+        switchTab(targetTab);
+        toggleSidebar(false);
+      }
+    });
+  });
+
+  const sidebarBtnDb = document.getElementById('sidebarMenuBtnDatabase');
+  if (sidebarBtnDb) {
+    sidebarBtnDb.addEventListener('click', () => {
+      toggleSidebar(false);
+      document.getElementById('dialogDatabaseMenu')?.showModal();
+    });
+  }
+
+  const btnOpenSidebar = document.getElementById('btnOpenSidebar');
+  if (btnOpenSidebar) {
+    btnOpenSidebar.addEventListener('click', () => toggleSidebar(true));
+  }
+
+  const btnCloseSidebar = document.getElementById('btnCloseSidebar');
+  if (btnCloseSidebar) {
+    btnCloseSidebar.addEventListener('click', () => toggleSidebar(false));
+  }
+
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', () => toggleSidebar(false));
+  }
+
+  // Pagination Event Listeners
+  const btnPrevPage = document.getElementById('btnPrevPage');
+  if (btnPrevPage) {
+    btnPrevPage.addEventListener('click', () => {
+      if (appState.pagination.page > 1) {
+        appState.pagination.page -= 1;
+        renderCustomerTable();
+      }
+    });
+  }
+
+  const btnNextPage = document.getElementById('btnNextPage');
+  if (btnNextPage) {
+    btnNextPage.addEventListener('click', () => {
+      appState.pagination.page += 1;
+      renderCustomerTable();
+    });
+  }
+
+  const selectPageSize = document.getElementById('selectPageSize');
+  if (selectPageSize) {
+    selectPageSize.addEventListener('change', (e) => {
+      appState.pagination.perPage = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+      appState.pagination.page = 1;
+      renderCustomerTable();
+    });
+  }
+
+  const paginationPages = document.getElementById('paginationPages');
+  if (paginationPages) {
+    paginationPages.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-goto-page]');
+      if (!btn) return;
+      const targetPage = Number(btn.getAttribute('data-goto-page'));
+      if (targetPage && targetPage !== appState.pagination.page) {
+        appState.pagination.page = targetPage;
+        renderCustomerTable();
+      }
+    });
+  }
 
   // Tab Switching
   document.querySelectorAll('.tab-btn').forEach((btn) => {
