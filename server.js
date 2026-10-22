@@ -307,10 +307,70 @@ function saveConfig(newConfig) {
   return merged;
 }
 
+function computeLogSummary(log) {
+  const custResult = (log.results || []).find(r => r.target === 'Pelanggan') || log.results?.[0];
+  const waOk = custResult?.wa?.ok && !custResult?.wa?.simulated && custResult?.wa?.mode !== 'SKIPPED' && custResult?.wa?.mode !== 'WA_NOT_REGISTERED';
+  const emailOk = custResult?.email?.ok && !custResult?.email?.simulated && custResult?.email?.mode !== 'SKIPPED' && custResult?.email?.mode !== 'GMAIL_GAGAL_LOGIN';
+
+  let status = 'SUCCESS';
+  let reason = '';
+
+  if (!custResult) {
+    status = 'FAILED';
+    reason = 'Tidak ada data penerima pesan';
+  } else {
+    const waError = custResult.wa?.reason || '';
+    const emailError = custResult.email?.reason || '';
+
+    if (waOk && emailOk) {
+      status = 'SUCCESS';
+      reason = 'WA & Email berhasil terkirim ke Pelanggan';
+    } else if (waOk && !emailOk) {
+      status = 'PARTIAL';
+      if (emailError) reason = `WA terkirim. Email: ${emailError}`;
+      else reason = 'WA terkirim, Email dilewati/kosong';
+    } else if (!waOk && emailOk) {
+      status = 'PARTIAL';
+      if (waError) reason = `Email terkirim. WA: ${waError}`;
+      else reason = 'Email terkirim, WA gagal / belum terhubung';
+    } else {
+      status = 'FAILED';
+      if (waError && emailError) {
+        reason = `WA: ${waError} | Email: ${emailError}`;
+      } else if (waError) {
+        reason = `Gagal WA: ${waError}`;
+      } else if (emailError) {
+        reason = `Gagal Email: ${emailError}`;
+      } else {
+        reason = 'Pengiriman WA dan Email tidak berhasil';
+      }
+    }
+  }
+
+  return { status, reason };
+}
+
+function normalizeLogItem(item) {
+  if (!item.dateWita && item.timestampWita) {
+    const parts = item.timestampWita.split(' ');
+    if (parts[0] && /^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+      item.dateWita = parts[0];
+      item.timeWita = parts[1] || '';
+    }
+  }
+  if (!item.status || !item.failureReason) {
+    const summary = computeLogSummary(item);
+    if (!item.status) item.status = summary.status;
+    if (!item.failureReason) item.failureReason = summary.reason;
+  }
+  return item;
+}
+
 function loadLogs() {
   if (!fs.existsSync(LOGS_PATH)) return [];
   try {
-    return JSON.parse(fs.readFileSync(LOGS_PATH, 'utf-8'));
+    const parsed = JSON.parse(fs.readFileSync(LOGS_PATH, 'utf-8'));
+    return parsed.map(normalizeLogItem);
   } catch (e) {
     return [];
   }
@@ -318,14 +378,152 @@ function loadLogs() {
 
 function appendLog(entry) {
   const logs = loadLogs();
+  const wita = getWitaParts();
+  const summary = computeLogSummary(entry);
+
   logs.unshift({
     id: `LOG-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    timestampWita: `${getWitaParts().dateStr} ${getWitaParts().timeStr} WITA`,
+    dateWita: wita.dateStr,
+    timeWita: wita.timeStr,
+    timestampWita: `${wita.dateStr} ${wita.timeStr} WITA`,
+    status: summary.status,
+    failureReason: summary.reason,
     ...entry
   });
   if (logs.length > 500) logs.length = 500;
   fs.writeFileSync(LOGS_PATH, JSON.stringify(logs, null, 2), 'utf-8');
   return logs[0];
+}
+
+function getReportAnalytics(targetDate = null, targetMonth = null) {
+  const wita = getWitaParts();
+  const logs = loadLogs();
+  const curDate = targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? targetDate : wita.dateStr;
+  const curMonth = targetMonth && /^\d{4}-\d{2}$/.test(targetMonth) ? targetMonth : curDate.slice(0, 7);
+
+  // 1. DAILY REPORT FOR curDate
+  const dailyLogs = logs.filter(l => l.dateWita === curDate);
+  const dailySent = dailyLogs.filter(l => l.status === 'SUCCESS').length;
+  const dailyPartial = dailyLogs.filter(l => l.status === 'PARTIAL').length;
+  const dailyFailed = dailyLogs.filter(l => l.status === 'FAILED').length;
+  const dailyTotal = dailyLogs.length;
+  const dailySuccessRate = dailyTotal > 0 ? Math.round(((dailySent + (dailyPartial * 0.5)) / dailyTotal) * 100) : 100;
+
+  const dailyByCategory = {
+    ULTAH: { total: 0, sent: 0, failed: 0 },
+    SAMSAT: { total: 0, sent: 0, failed: 0 },
+    ASURANSI: { total: 0, sent: 0, failed: 0 },
+    SERVICE: { total: 0, sent: 0, failed: 0 }
+  };
+
+  dailyLogs.forEach(l => {
+    const cat = l.reminderType || 'SERVICE';
+    if (dailyByCategory[cat]) {
+      dailyByCategory[cat].total += 1;
+      if (l.status === 'SUCCESS' || l.status === 'PARTIAL') dailyByCategory[cat].sent += 1;
+      else dailyByCategory[cat].failed += 1;
+    }
+  });
+
+  // 2. WEEKLY REPORT (Last 7 Days)
+  const dayNamesIndo = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+  const weeklyDays = [];
+  let weeklyTotalSent = 0;
+  let weeklyTotalFailed = 0;
+  const failureReasonMap = {};
+
+  for (let i = 6; i >= 0; i--) {
+    const dStr = addDaysToDateStr(curDate, -i);
+    const dayDate = new Date(`${dStr}T00:00:00Z`);
+    const dayName = dayNamesIndo[dayDate.getUTCDay()] || 'Hari';
+    const dayNum = dStr.split('-')[2];
+    const isToday = dStr === curDate;
+
+    const dayLogs = logs.filter(l => l.dateWita === dStr);
+    const daySent = dayLogs.filter(l => l.status === 'SUCCESS' || l.status === 'PARTIAL').length;
+    const dayFailed = dayLogs.filter(l => l.status === 'FAILED').length;
+
+    weeklyTotalSent += daySent;
+    weeklyTotalFailed += dayFailed;
+
+    dayLogs.forEach(l => {
+      if (l.status !== 'SUCCESS' && l.failureReason) {
+        failureReasonMap[l.failureReason] = (failureReasonMap[l.failureReason] || 0) + 1;
+      }
+    });
+
+    weeklyDays.push({
+      date: dStr,
+      dayLabel: isToday ? `Hari Ini (${dayNum})` : `${dayName} (${dayNum})`,
+      sent: daySent,
+      failed: dayFailed,
+      total: daySent + dayFailed
+    });
+  }
+
+  const topFailureReasons = Object.entries(failureReasonMap)
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  const weeklyTotal = weeklyTotalSent + weeklyTotalFailed;
+  const weeklySuccessRate = weeklyTotal > 0 ? Math.round((weeklyTotalSent / (weeklyTotal || 1)) * 100) : 100;
+
+  // 3. MONTHLY REPORT
+  const monthlyLogs = logs.filter(l => (l.dateWita || '').startsWith(curMonth));
+  const monthlySent = monthlyLogs.filter(l => l.status === 'SUCCESS' || l.status === 'PARTIAL').length;
+  const monthlyFailed = monthlyLogs.filter(l => l.status === 'FAILED').length;
+  const monthlyTotal = monthlyLogs.length;
+  const monthlySuccessRate = monthlyTotal > 0 ? Math.round((monthlySent / (monthlyTotal || 1)) * 100) : 100;
+
+  const monthlyByCategory = {
+    ULTAH: monthlyLogs.filter(l => l.reminderType === 'ULTAH').length,
+    SAMSAT: monthlyLogs.filter(l => l.reminderType === 'SAMSAT').length,
+    ASURANSI: monthlyLogs.filter(l => l.reminderType === 'ASURANSI').length,
+    SERVICE: monthlyLogs.filter(l => l.reminderType === 'SERVICE').length
+  };
+
+  const [mYear, mMonthNum] = curMonth.split('-');
+  const monthsIndo = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  const monthNameIndo = `${monthsIndo[Number(mMonthNum) - 1] || ''} ${mYear}`;
+
+  return {
+    curDate,
+    curMonth,
+    dateIndo: formatDateIndonesian(curDate),
+    daily: {
+      date: curDate,
+      dateIndo: formatDateIndonesian(curDate),
+      totalTarget: dailyTotal,
+      totalSent: dailySent,
+      totalPartial: dailyPartial,
+      totalFailed: dailyFailed,
+      successRate: `${dailySuccessRate}%`,
+      byCategory: dailyByCategory,
+      logs: dailyLogs
+    },
+    weekly: {
+      totalSent: weeklyTotalSent,
+      totalFailed: weeklyTotalFailed,
+      totalAll: weeklyTotal,
+      successRate: `${weeklySuccessRate}%`,
+      days: weeklyDays,
+      topFailureReasons
+    },
+    monthly: {
+      month: curMonth,
+      monthLabel: monthNameIndo,
+      totalSent: monthlySent,
+      totalFailed: monthlyFailed,
+      totalAll: monthlyTotal,
+      successRate: `${monthlySuccessRate}%`,
+      estimatedServiceUnits: monthlyByCategory.SERVICE,
+      byCategory: monthlyByCategory
+    }
+  };
 }
 
 // ============================================================================
@@ -1771,6 +1969,61 @@ app.post('/api/logs/clear-today-flags', (req, res) => {
   writeCustomersToExcel(customers);
   setTimeout(() => checkAndRunScheduledReminders(false, 'AUTO_PILOT_WITA').catch(() => {}), 1500);
   res.json({ ok: true });
+});
+
+// Analytics & Reports (Daily, Weekly, Monthly with Failure Reason Breakdown)
+app.get('/api/reports', (req, res) => {
+  try {
+    const { date, month } = req.query;
+    const analytics = getReportAnalytics(date, month);
+    res.json({ ok: true, ...analytics });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Export Report to Excel (.xlsx)
+app.get('/api/reports/export', (req, res) => {
+  try {
+    const { date, month } = req.query;
+    const analytics = getReportAnalytics(date, month);
+    const targetLogs = date
+      ? analytics.daily.logs
+      : (month ? loadLogs().filter(l => (l.dateWita || '').startsWith(analytics.curMonth)) : loadLogs());
+
+    const rows = targetLogs.map((l, i) => {
+      const custRes = (l.results || []).find(r => r.target === 'Pelanggan');
+      const salesRes = (l.results || []).find(r => r.target === 'Sales');
+      const saRes = (l.results || []).find(r => r.target === 'Service Advisor (SA)' || r.target === 'Service Advisor');
+
+      return {
+        'No': i + 1,
+        'Tanggal (WITA)': l.dateWita || '',
+        'Waktu (WITA)': l.timeWita || l.timestampWita || '',
+        'Nama Pelanggan': l.namaPelanggan || '',
+        'No. Polisi': l.noPolisi || '',
+        'Tipe Mobil': l.tipeMobil || '',
+        'Kategori Pengingat': l.categoryTitle || l.reminderType || '',
+        'Status': l.status || 'SUCCESS',
+        'Alasan / Keterangan Kendala': l.failureReason || 'Berhasil',
+        'WA Pelanggan': custRes?.wa?.ok ? `Terkirim (${custRes.wa.mode})` : (custRes?.wa?.reason || '-'),
+        'Email Pelanggan': custRes?.email?.ok ? `Terkirim (${custRes.email.mode})` : (custRes?.email?.reason || '-'),
+        'Sales Tembusan': salesRes?.name ? `${salesRes.name} (${salesRes.wa?.ok ? 'WA OK' : '-'})` : '-',
+        'SA Tembusan': saRes?.name ? `${saRes.name} (${saRes.wa?.ok ? 'WA OK' : '-'})` : '-'
+      };
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ 'Keterangan': 'Belum ada riwayat pengiriman pada periode ini' }]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Laporan Pengiriman');
+
+    const tempFilename = `Laporan_Pengiriman_Toyota_Gianyar_${analytics.curDate}.xlsx`;
+    const tempPath = path.join(os.tmpdir(), tempFilename);
+    XLSX.writeFile(wb, tempPath);
+    res.download(tempPath, tempFilename);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 ensureExcelExists();

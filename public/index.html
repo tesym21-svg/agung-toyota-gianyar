@@ -611,17 +611,232 @@
       </form>
     </section>
 
-    <!-- TAB 5: RIWAYAT LOG PENGIRIMAN -->
+    <!-- TAB 5: RIWAYAT & LAPORAN ANALITIK PENGIRIMAN -->
     <section id="tab-logs" class="tab-panel">
-      <div class="panel-header">
-        <div>
-          <h2>📜 Riwayat Pengiriman WhatsApp &amp; Email</h2>
-          <p class="panel-desc">Catatan lengkap pengiriman pesan ke Pelanggan, Sales, dan Service Advisor (SA) beserta waktu WITA.</p>
+      <!-- Header Laporan dengan Switcher Periode & Tombol Aksi -->
+      <div class="report-header-card">
+        <div class="report-header-left">
+          <div class="report-badge-row">
+            <span class="report-tag-accent">📊 MODUL ANALITIK &amp; REKAP</span>
+            <span class="report-tag-mdp">Design by MDP</span>
+          </div>
+          <h2 class="report-main-title">📜 Riwayat &amp; Laporan Analitik Pengiriman</h2>
+          <p class="panel-desc">
+            Statistik dan evaluasi efektivitas pengiriman pesan pengingat WA &amp; Gmail dengan rincian status sukses, kendala, dan grafik performa.
+          </p>
+        </div>
+
+        <div class="report-header-right">
+          <!-- Toggle Periode: Harian / Mingguan / Bulanan -->
+          <div class="report-period-toggle">
+            <button type="button" class="period-btn active" id="btnReportPeriodDaily" onclick="setReportPeriod('daily')">
+              📅 Harian
+            </button>
+            <button type="button" class="period-btn" id="btnReportPeriodWeekly" onclick="setReportPeriod('weekly')">
+              📊 Mingguan
+            </button>
+            <button type="button" class="period-btn" id="btnReportPeriodMonthly" onclick="setReportPeriod('monthly')">
+              📈 Bulanan
+            </button>
+          </div>
+          <div class="report-header-actions">
+            <button type="button" class="btn btn-sm btn-outline" id="btnDownloadReportExcel" title="Download Laporan ke File Excel (.xlsx)">
+              📥 Download Excel
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" id="btnRefreshReport" title="Refresh Laporan">
+              🔄 Refresh
+            </button>
+          </div>
         </div>
       </div>
-      <div id="logsContainer" class="logs-list">
-        <!-- Populated by app.js -->
+
+      <!-- ==================== LAPORAN HARIAN ==================== -->
+      <div id="reportSectionDaily" class="report-section active">
+        <!-- Filter Tanggal Harian -->
+        <div class="report-filter-bar">
+          <div class="filter-left">
+            <label for="inputReportDailyDate" class="filter-label">PILIH TANGGAL:</label>
+            <input type="date" id="inputReportDailyDate" class="input-control report-date-picker">
+            <span class="filter-status-pill" id="dailyReportDateLabel">Hari Ini (WITA)</span>
+          </div>
+        </div>
+
+        <!-- 4 KPI Card Harian -->
+        <div class="report-kpi-grid">
+          <div class="report-kpi-card">
+            <span class="kpi-micro-title">TOTAL ANTREAN</span>
+            <div class="kpi-huge-number text-slate" id="kpiDailyTotal">0</div>
+            <span class="kpi-micro-sub">Pesan terjadwal</span>
+          </div>
+          <div class="report-kpi-card kpi-card-success">
+            <div class="kpi-top-row">
+              <span class="kpi-micro-title">BERHASIL TERKIRIM</span>
+              <span class="kpi-percent-badge badge-green" id="kpiDailySuccessRate">100%</span>
+            </div>
+            <div class="kpi-huge-number text-green" id="kpiDailySent">0</div>
+            <span class="kpi-micro-sub text-green" id="kpiDailySentSub">Pelanggan menerima pesan</span>
+          </div>
+          <div class="report-kpi-card kpi-card-danger">
+            <div class="kpi-top-row">
+              <span class="kpi-micro-title">GAGAL / KENDALA</span>
+              <span class="kpi-percent-badge badge-red" id="kpiDailyFailedRate">0%</span>
+            </div>
+            <div class="kpi-huge-number text-red" id="kpiDailyFailed">0</div>
+            <span class="kpi-micro-sub text-red" id="kpiDailyFailedSub">Perlu perbaikan data</span>
+          </div>
+          <div class="report-kpi-card kpi-card-info">
+            <span class="kpi-micro-title">TEMBUSAN STAFF</span>
+            <div class="kpi-huge-number text-blue" id="kpiDailyStaff">0</div>
+            <span class="kpi-micro-sub text-blue">Sales &amp; Service Advisor</span>
+          </div>
+        </div>
+
+        <!-- Layout 2 Kolom: Grafik Kategori Harian & Tabel Reason -->
+        <div class="report-grid-two-col">
+          <!-- Grafik Kategori Harian -->
+          <div class="settings-card report-chart-card">
+            <div class="card-badge-header">
+              <h3>📊 Grafik Kategori Hari Ini</h3>
+            </div>
+            <p class="card-help">Perbandingan jumlah pengingat yang diproses berdasarkan 4 kategori:</p>
+            <div class="category-progress-list" id="dailyCategoryBars">
+              <!-- Rendered dynamically -->
+            </div>
+            <div class="chart-footer-summary">
+              <div>
+                <span class="micro-label">Terkirim</span>
+                <strong class="micro-val text-green" id="dailyChartFooterSent">0 Pesan</strong>
+              </div>
+              <div class="divider-vertical"></div>
+              <div>
+                <span class="micro-label">Gagal</span>
+                <strong class="micro-val text-red" id="dailyChartFooterFailed">0 Pesan</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabel Rincian Pesan & Reason / Keterangan Kendala -->
+          <div class="settings-card report-table-card">
+            <div class="card-badge-header">
+              <h3>📋 Rincian Pesan &amp; Reason (Alasan Kendala)</h3>
+              <span class="badge-mini-danger hidden" id="dailyAttentionBadge">0 Kendala</span>
+            </div>
+            <div class="table-responsive">
+              <table class="report-data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 75px;">Waktu</th>
+                    <th>Pelanggan &amp; Unit</th>
+                    <th style="width: 90px;">Kategori</th>
+                    <th style="width: 85px; text-align: center;">Status</th>
+                    <th>Reason / Keterangan Masalah</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyReportTableBody">
+                  <!-- Populated by app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <!-- ==================== LAPORAN MINGGUAN ==================== -->
+      <div id="reportSectionWeekly" class="report-section hidden">
+        <div class="settings-card mb-16">
+          <div class="card-badge-header">
+            <div>
+              <h3>📊 Grafik Tren 7 Hari Terakhir (Senin – Minggu)</h3>
+              <p class="card-help" style="margin-top:2px;">Perbandingan pengiriman berhasil (batang hijau) dan gagal (batang merah) setiap harinya.</p>
+            </div>
+            <div class="weekly-stat-badge" id="weeklyTotalSummaryBadge">Total Minggu Ini: 0 Pesan</div>
+          </div>
+
+          <!-- VISUAL BAR CHART 7 HARI -->
+          <div class="weekly-chart-canvas" id="weeklyBarsContainer">
+            <!-- Rendered dynamically with 7 day bars -->
+          </div>
+
+          <!-- Chart Legend -->
+          <div class="chart-legend-row">
+            <span class="legend-item"><span class="legend-dot bg-green"></span> Berhasil Terkirim (<strong id="weeklyLegendSent">0</strong>)</span>
+            <span class="legend-item"><span class="legend-dot bg-red"></span> Gagal / Kendala (<strong id="weeklyLegendFailed">0</strong>)</span>
+          </div>
+        </div>
+
+        <!-- Top Failure Reasons Mingguan -->
+        <div class="settings-card">
+          <div class="card-badge-header">
+            <h3>⚠️ Top Penyebab Pesan Tidak Terkirim Minggu Ini</h3>
+          </div>
+          <div class="top-reasons-grid" id="weeklyTopReasonsContainer">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== LAPORAN BULANAN ==================== -->
+      <div id="reportSectionMonthly" class="report-section hidden">
+        <div class="settings-card">
+          <div class="card-badge-header">
+            <div>
+              <h3 id="monthlyReportTitle">📈 Laporan Akumulasi Bulanan</h3>
+              <p class="card-help" style="margin-top:2px;">Rekapitulasi total efisiensi dan distribusi kategori pengingat otomatis Agung Toyota Gianyar.</p>
+            </div>
+            <div class="report-month-selector">
+              <label for="selectReportMonth" class="visually-hidden">Pilih Bulan Laporan</label>
+              <select id="selectReportMonth" class="input-control" style="width: auto; padding: 4px 8px; font-size: 13px;">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+          </div>
+
+          <!-- 4 KPI Card Bulanan -->
+          <div class="report-kpi-grid mb-16">
+            <div class="report-kpi-card">
+              <span class="kpi-micro-title">TOTAL BULAN INI</span>
+              <div class="kpi-huge-number text-slate" id="kpiMonthlyTotal">0</div>
+              <span class="kpi-micro-sub">Reminder dieksekusi</span>
+            </div>
+            <div class="report-kpi-card kpi-card-success">
+              <span class="kpi-micro-title">SUKSES TERKIRIM</span>
+              <div class="kpi-huge-number text-green" id="kpiMonthlySent">0</div>
+              <span class="kpi-micro-sub text-green" id="kpiMonthlySentRate">Tingkat keberhasilan: 100%</span>
+            </div>
+            <div class="report-kpi-card kpi-card-danger">
+              <span class="kpi-micro-title">GAGAL / KENDALA</span>
+              <div class="kpi-huge-number text-red" id="kpiMonthlyFailed">0</div>
+              <span class="kpi-micro-sub text-red" id="kpiMonthlyFailedRate">0% dari total</span>
+            </div>
+            <div class="report-kpi-card kpi-card-info">
+              <span class="kpi-micro-title">ESTIMASI UNIT SERVICE MASUK</span>
+              <div class="kpi-huge-number text-blue" id="kpiMonthlyServiceUnits">0</div>
+              <span class="kpi-micro-sub text-blue">Dari pengingat H-5</span>
+            </div>
+          </div>
+
+          <!-- Distribusi Kategori Bulanan -->
+          <div class="monthly-category-box">
+            <h4 style="margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--slate-700);">
+              Distribusi Pengingat Berdasarkan 4 Kategori Utama:
+            </h4>
+            <div class="category-progress-list" id="monthlyCategoryBars">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARSIP LENGKAP SEMUA LOG MENTAH (ACCORDION / DETAIL) -->
+      <details class="raw-logs-details mt-16">
+        <summary class="raw-logs-summary">
+          <span>📜 Tampilkan Arsip Riwayat Seluruh Log Pengiriman Mentah</span>
+          <span class="summary-arrow">▼</span>
+        </summary>
+        <div id="logsContainer" class="logs-list mt-12">
+          <!-- Populated by app.js -->
+        </div>
+      </details>
     </section>
   </main>
 

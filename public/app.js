@@ -14,7 +14,11 @@ let appState = {
   pagination: {
     page: 1,
     perPage: 15
-  }
+  },
+  activeReportPeriod: 'daily',
+  selectedReportDate: '',
+  selectedReportMonth: '',
+  reportData: null
 };
 
 // 1. Mandatory Light-Dismiss Fallback for <dialog closedby="any">
@@ -148,6 +152,7 @@ async function fetchDashboard(populateForms = false) {
     renderCustomerTable();
     renderWaAndSmtpStatus();
     renderLogs();
+    fetchReportAnalytics().catch(() => {});
 
     if (populateForms) {
       populateConfigForms(appState.config);
@@ -598,6 +603,290 @@ function renderWaAndSmtpStatus() {
     if (mainGmailAcc) {
       mainGmailAcc.textContent = '';
     }
+  }
+}
+
+function setReportPeriod(period) {
+  appState.activeReportPeriod = period;
+  
+  const secDaily = document.getElementById('reportSectionDaily');
+  const secWeekly = document.getElementById('reportSectionWeekly');
+  const secMonthly = document.getElementById('reportSectionMonthly');
+
+  const btnDaily = document.getElementById('btnReportPeriodDaily');
+  const btnWeekly = document.getElementById('btnReportPeriodWeekly');
+  const btnMonthly = document.getElementById('btnReportPeriodMonthly');
+
+  if (secDaily) secDaily.classList.toggle('hidden', period !== 'daily');
+  if (secWeekly) secWeekly.classList.toggle('hidden', period !== 'weekly');
+  if (secMonthly) secMonthly.classList.toggle('hidden', period !== 'monthly');
+
+  if (btnDaily) btnDaily.classList.toggle('active', period === 'daily');
+  if (btnWeekly) btnWeekly.classList.toggle('active', period === 'weekly');
+  if (btnMonthly) btnMonthly.classList.toggle('active', period === 'monthly');
+}
+window.setReportPeriod = setReportPeriod;
+
+async function fetchReportAnalytics(targetDate, targetMonth) {
+  try {
+    const qDate = targetDate !== undefined ? targetDate : appState.selectedReportDate;
+    const qMonth = targetMonth !== undefined ? targetMonth : appState.selectedReportMonth;
+
+    const params = new URLSearchParams();
+    if (qDate) params.set('date', qDate);
+    if (qMonth) params.set('month', qMonth);
+
+    const res = await fetch(`/api/reports?${params.toString()}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.ok) return;
+
+    appState.reportData = data;
+    if (data.curDate && !appState.selectedReportDate) {
+      appState.selectedReportDate = data.curDate;
+    }
+    if (data.curMonth && !appState.selectedReportMonth) {
+      appState.selectedReportMonth = data.curMonth;
+    }
+
+    renderReportsDashboard();
+  } catch (err) {
+    console.error('Gagal mengambil data laporan analitik:', err);
+  }
+}
+
+function renderReportsDashboard() {
+  const d = appState.reportData;
+  if (!d) return;
+
+  const safeSet = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val ?? '';
+  };
+
+  // ==================== 1. DAILY REPORT ====================
+  const daily = d.daily || {};
+  const dateInput = document.getElementById('inputReportDailyDate');
+  if (dateInput && !dateInput.value) {
+    dateInput.value = daily.date || d.curDate || '';
+  }
+  const dateLabel = document.getElementById('dailyReportDateLabel');
+  if (dateLabel) {
+    dateLabel.textContent = (daily.date === d.curDate)
+      ? `🟢 Hari Ini — ${daily.dateIndo || ''}`
+      : `📅 ${daily.dateIndo || daily.date}`;
+  }
+
+  safeSet('kpiDailyTotal', daily.totalTarget || 0);
+  safeSet('kpiDailySent', daily.totalSent || 0);
+  safeSet('kpiDailySuccessRate', daily.successRate || '100%');
+  safeSet('kpiDailyFailed', daily.totalFailed || 0);
+  const failRate = daily.totalTarget > 0 ? `${Math.round((daily.totalFailed / daily.totalTarget) * 100)}%` : '0%';
+  safeSet('kpiDailyFailedRate', failRate);
+  safeSet('kpiDailyStaff', (daily.totalSent + (daily.totalPartial || 0)) * 2);
+
+  // Daily Category Progress Bars
+  const catBarsEl = document.getElementById('dailyCategoryBars');
+  if (catBarsEl) {
+    const cats = [
+      { key: 'ULTAH', label: '🎂 Ulang Tahun', fillClass: 'fill-bday', color: '#db2777' },
+      { key: 'SAMSAT', label: '🚗 Pajak / Samsat H-3', fillClass: 'fill-samsat', color: '#d97706' },
+      { key: 'ASURANSI', label: '🛡️ Expired Asuransi H-3', fillClass: 'fill-asuransi', color: '#2563eb' },
+      { key: 'SERVICE', label: '🔧 Next Service H-5', fillClass: 'fill-service', color: '#0d9488' }
+    ];
+
+    catBarsEl.innerHTML = cats.map(c => {
+      const data = daily.byCategory?.[c.key] || { total: 0, sent: 0, failed: 0 };
+      const pct = data.total > 0 ? Math.round((data.sent / data.total) * 100) : 0;
+      const failPct = 100 - pct;
+
+      return `
+        <div class="category-progress-item">
+          <div class="category-label-row">
+            <span style="color: ${c.color}; font-weight: 700;">${c.label}</span>
+            <span style="color: var(--slate-600); font-weight: 600;">${data.sent} / ${data.total} (${pct}%)</span>
+          </div>
+          <div class="progress-bar-track">
+            ${data.total === 0
+              ? `<div class="progress-bar-fill" style="width: 100%; background: #e2e8f0;"></div>`
+              : `
+                <div class="progress-bar-fill ${c.fillClass}" style="width: ${pct}%;"></div>
+                ${data.failed > 0 ? `<div class="progress-bar-fill fill-failed" style="width: ${failPct}%;"></div>` : ''}
+              `
+            }
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  safeSet('dailyChartFooterSent', `${daily.totalSent || 0} Pesan`);
+  safeSet('dailyChartFooterFailed', `${daily.totalFailed || 0} Pesan`);
+
+  // Daily Reason & Message Details Table
+  const tableBody = document.getElementById('dailyReportTableBody');
+  const attnBadge = document.getElementById('dailyAttentionBadge');
+  if (attnBadge) {
+    if (daily.totalFailed > 0) {
+      attnBadge.textContent = `⚠️ ${daily.totalFailed} Butuh Perhatian`;
+      attnBadge.classList.remove('hidden');
+    } else {
+      attnBadge.classList.add('hidden');
+    }
+  }
+
+  if (tableBody) {
+    const logs = daily.logs || [];
+    if (logs.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align:center; padding: 28px; color: var(--slate-500);">
+            Belum ada riwayat pengiriman pesan yang tercatat pada tanggal <strong>${escapeHtml(daily.dateIndo || daily.date)}</strong>.
+          </td>
+        </tr>
+      `;
+    } else {
+      tableBody.innerHTML = logs.map(l => {
+        let statusBadge = '<span class="status-pill-ok">✓ Terkirim</span>';
+        let reasonClass = 'text-green font-semibold';
+        if (l.status === 'FAILED') {
+          statusBadge = '<span class="status-pill-fail">✕ Gagal</span>';
+          reasonClass = 'reason-text-highlight';
+        } else if (l.status === 'PARTIAL') {
+          statusBadge = '<span class="status-pill-partial">⚠️ Parsial</span>';
+          reasonClass = 'reason-text-partial';
+        }
+
+        const catIcons = { ULTAH: '🎂 Ultah', SAMSAT: '🚗 Samsat', ASURANSI: '🛡️ Asuransi', SERVICE: '🔧 Service' };
+        const catLabel = catIcons[l.reminderType] || l.categoryTitle || 'Pengingat';
+
+        return `
+          <tr>
+            <td style="white-space: nowrap; color: var(--slate-500); font-weight: 600;">
+              ${escapeHtml(l.timeWita || l.timestampWita?.split(' ')[1] || '-')} WITA
+            </td>
+            <td>
+              <strong style="color: var(--obsidian); display: block;">${escapeHtml(l.namaPelanggan)}</strong>
+              <span style="font-size: 11px; color: var(--slate-500);">${escapeHtml(l.noPolisi || '-')} • ${escapeHtml(l.tipeMobil || '-')}</span>
+            </td>
+            <td style="white-space: nowrap; font-weight: 700;">
+              ${escapeHtml(catLabel)}
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              ${statusBadge}
+            </td>
+            <td>
+              <div class="${reasonClass}">${escapeHtml(l.failureReason || 'Berhasil terkirim')}</div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // ==================== 2. WEEKLY REPORT ====================
+  const weekly = d.weekly || {};
+  safeSet('weeklyTotalSummaryBadge', `Total Minggu Ini: ${weekly.totalAll || 0} Pesan`);
+  safeSet('weeklyLegendSent', weekly.totalSent || 0);
+  safeSet('weeklyLegendFailed', weekly.totalFailed || 0);
+
+  const weeklyContainer = document.getElementById('weeklyBarsContainer');
+  if (weeklyContainer) {
+    const days = weekly.days || [];
+    const maxVal = Math.max(...days.map(day => day.total || 0), 1);
+
+    weeklyContainer.innerHTML = days.map(day => {
+      const heightPct = Math.max(12, Math.round((day.total / maxVal) * 90));
+      const failPct = day.total > 0 ? Math.round((day.failed / day.total) * 100) : 0;
+      const successPct = 100 - failPct;
+
+      return `
+        <div class="weekly-day-col">
+          <span style="font-size: 11px; font-weight: 800; color: ${day.failed > 0 ? '#b91c1c' : '#475569'};">
+            ${day.failed > 0 ? `${day.sent}/${day.failed}!` : day.sent}
+          </span>
+          <div class="weekly-bar-stacked" style="height: ${heightPct}%;">
+            ${day.failed > 0 ? `<div class="weekly-bar-segment-fail" style="height: ${failPct}%;"></div>` : ''}
+            <div class="weekly-bar-segment-success" style="height: ${successPct}%;"></div>
+          </div>
+          <span class="weekly-day-label ${day.date === d.curDate ? 'today' : ''}">
+            ${escapeHtml(day.dayLabel)}
+          </span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  const reasonsContainer = document.getElementById('weeklyTopReasonsContainer');
+  if (reasonsContainer) {
+    const reasons = weekly.topFailureReasons || [];
+    if (reasons.length === 0) {
+      reasonsContainer.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--slate-500); font-size: 13px;">
+          🎉 <strong>Luar Biasa!</strong> Tidak ada kegagalan pengiriman yang terdeteksi dalam 7 hari terakhir.
+        </div>
+      `;
+    } else {
+      reasonsContainer.innerHTML = reasons.map((r, idx) => `
+        <div class="reason-card">
+          <div class="reason-card-title">
+            <span>${idx + 1}. ${escapeHtml(r.reason)}</span>
+            <span style="background: #fee2e2; padding: 2px 7px; border-radius: 6px; font-size: 11px;">${r.count} Kasus</span>
+          </div>
+          <p class="reason-card-desc">Periksa kelengkapan nomor WhatsApp dan email pelanggan pada data spreadsheet/Excel.</p>
+        </div>
+      `).join('');
+    }
+  }
+
+  // ==================== 3. MONTHLY REPORT ====================
+  const monthly = d.monthly || {};
+  safeSet('monthlyReportTitle', `📈 Laporan Akumulasi Bulanan (${monthly.monthLabel || ''})`);
+  safeSet('kpiMonthlyTotal', monthly.totalAll || 0);
+  safeSet('kpiMonthlySent', monthly.totalSent || 0);
+  safeSet('kpiMonthlySentRate', `Tingkat keberhasilan: ${monthly.successRate || '100%'}`);
+  safeSet('kpiMonthlyFailed', monthly.totalFailed || 0);
+  const mFailRate = monthly.totalAll > 0 ? `${Math.round((monthly.totalFailed / monthly.totalAll) * 100)}%` : '0%';
+  safeSet('kpiMonthlyFailedRate', `${mFailRate} dari total data`);
+  safeSet('kpiMonthlyServiceUnits', monthly.estimatedServiceUnits || 0);
+
+  // Month Selector Dropdown
+  const monthSelect = document.getElementById('selectReportMonth');
+  if (monthSelect && monthSelect.options.length === 0) {
+    const mList = [
+      { val: '2026-10', text: 'Oktober 2026' },
+      { val: '2026-09', text: 'September 2026' },
+      { val: '2026-08', text: 'Agustus 2026' }
+    ];
+    monthSelect.innerHTML = mList.map(m => `<option value="${m.val}" ${m.val === (monthly.month || '2026-10') ? 'selected' : ''}>${m.text}</option>`).join('');
+  }
+
+  const monthlyCatBars = document.getElementById('monthlyCategoryBars');
+  if (monthlyCatBars) {
+    const mTotal = monthly.totalAll || 1;
+    const cats = [
+      { key: 'ULTAH', label: '🎂 Ulang Tahun (Hari H)', fillClass: 'fill-bday', color: '#db2777' },
+      { key: 'SAMSAT', label: '🚗 Pajak / Samsat Kendaraan (H-3)', fillClass: 'fill-samsat', color: '#d97706' },
+      { key: 'ASURANSI', label: '🛡️ Polis Asuransi Mobil (H-3)', fillClass: 'fill-asuransi', color: '#2563eb' },
+      { key: 'SERVICE', label: '🔧 Next Service Berkala (H-5)', fillClass: 'fill-service', color: '#0d9488' }
+    ];
+
+    monthlyCatBars.innerHTML = cats.map(c => {
+      const count = monthly.byCategory?.[c.key] || 0;
+      const pct = monthly.totalAll > 0 ? Math.round((count / mTotal) * 100) : 0;
+
+      return `
+        <div class="category-progress-item">
+          <div class="category-label-row">
+            <span style="color: ${c.color}; font-weight: 700;">${c.label}</span>
+            <span style="color: var(--slate-600); font-weight: 600;">${count} Pesan (${pct}%)</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill ${c.fillClass}" style="width: ${pct}%;"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 }
 
@@ -1506,6 +1795,45 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       showToast('✅ Jadwal WITA (10:00–14:00 WITA) & Template Pesan berhasil disimpan!');
       fetchDashboard(false);
+    });
+  }
+
+  // ==================== REPORT & ANALYTICS EVENT LISTENERS ====================
+  const reportDateInput = document.getElementById('inputReportDailyDate');
+  if (reportDateInput) {
+    reportDateInput.addEventListener('change', (e) => {
+      appState.selectedReportDate = e.target.value;
+      fetchReportAnalytics(e.target.value, null);
+    });
+  }
+
+  const reportMonthSelect = document.getElementById('selectReportMonth');
+  if (reportMonthSelect) {
+    reportMonthSelect.addEventListener('change', (e) => {
+      appState.selectedReportMonth = e.target.value;
+      fetchReportAnalytics(null, e.target.value);
+    });
+  }
+
+  const btnDownloadReport = document.getElementById('btnDownloadReportExcel');
+  if (btnDownloadReport) {
+    btnDownloadReport.addEventListener('click', () => {
+      const q = new URLSearchParams();
+      if (appState.activeReportPeriod === 'daily' && appState.selectedReportDate) {
+        q.set('date', appState.selectedReportDate);
+      } else if (appState.activeReportPeriod === 'monthly' && appState.selectedReportMonth) {
+        q.set('month', appState.selectedReportMonth);
+      }
+      showToast('📥 Mengunduh Laporan Pengiriman Excel...');
+      window.open(`/api/reports/export?${q.toString()}`, '_blank');
+    });
+  }
+
+  const btnRefreshReport = document.getElementById('btnRefreshReport');
+  if (btnRefreshReport) {
+    btnRefreshReport.addEventListener('click', () => {
+      showToast('🔄 Memperbarui data laporan pengiriman...');
+      fetchReportAnalytics();
     });
   }
 });
