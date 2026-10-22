@@ -109,6 +109,40 @@ async function fetchDashboard(populateForms = false) {
     appState.logs = data.logs || [];
     appState.autoPilotStatusText = data.autoPilotStatusText || '';
 
+    // LocalStorage Caching & Recovery
+    const localUrl = localStorage.getItem('toyota_gsheet_url');
+    if (localUrl && !appState.config.googleSheetApiUrl) {
+      appState.config.googleSheetApiUrl = localUrl;
+      fetch('/api/google-sheets/save-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: localUrl })
+      }).catch(() => {});
+    }
+
+    if (appState.customers.length > 0) {
+      try {
+        localStorage.setItem('toyota_customers_cache', JSON.stringify(appState.customers));
+      } catch (_) {}
+    } else {
+      // If server returned 0 customers (e.g. cold start on Vercel), recover from cache
+      try {
+        const cached = localStorage.getItem('toyota_customers_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            appState.customers = parsed;
+            if (data.stats) data.stats.totalCustomers = parsed.length;
+            fetch('/api/excel/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode: 'replace', customers: parsed })
+            }).catch(() => {});
+          }
+        }
+      } catch (_) {}
+    }
+
     renderHeaderAndStats(data);
     renderTodayReminders();
     renderCustomerTable();
@@ -117,11 +151,16 @@ async function fetchDashboard(populateForms = false) {
 
     if (populateForms) {
       populateConfigForms(appState.config);
+      const urlInput = document.getElementById('inputGoogleSheetApiUrl');
+      if (urlInput && !urlInput.value && localUrl) {
+        urlInput.value = localUrl;
+      }
     }
   } catch (err) {
     console.error('Gagal memuat dashboard:', err);
   }
 }
+
 
 function renderHeaderAndStats(data) {
   document.getElementById('statTotalCustomers').textContent = data.stats.totalCustomers ?? 0;
@@ -1131,6 +1170,66 @@ document.addEventListener('DOMContentLoaded', () => {
   // GOOGLE SPREADSHEET 2-WAY DATABASE INTEGRATION (ACCU CARE PATTERN)
   // ==========================================================================
   
+  // Unified Pull Function with Direct Browser Fetch Fallback
+  async function executeGoogleSheetsPull() {
+    let sheetUrl = (appState.config?.googleSheetApiUrl || localStorage.getItem('toyota_gsheet_url') || '').trim();
+    if (!sheetUrl) {
+      showToast('⚠️ URL Google Spreadsheet belum dihubungkan. Silakan tempel URL Web App (/exec) di menu ini.');
+      const dlg = document.getElementById('dialogDatabaseMenu');
+      if (dlg) {
+        if (typeof dlg.showModal === 'function') dlg.showModal();
+        else dlg.style.display = 'block';
+      }
+      return;
+    }
+
+    localStorage.setItem('toyota_gsheet_url', sheetUrl);
+    showToast('🔄 Menarik data pelanggan terbaru dari Google Spreadsheet...');
+
+    // 1. Coba Tarik melalui Backend API
+    try {
+      const res = await fetch('/api/google-sheets/pull', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.ok && data.count > 0) {
+        showToast(`✅ Sukses! ${data.count} pelanggan dimuat dari Google Spreadsheet.`);
+        await fetchDashboard(false);
+        return;
+      }
+    } catch (backendErr) {
+      console.warn('Backend pull error, falling back to direct browser fetch:', backendErr);
+    }
+
+    // 2. Direct Browser Fetch Fallback (Persis pola AccuCare)
+    try {
+      showToast('🌐 Mengambil data langsung dari Google Apps Script...');
+      const directUrl = `${sheetUrl}${sheetUrl.includes('?') ? '&' : '?'}action=get_customers&t=${Date.now()}`;
+      const directRes = await fetch(directUrl);
+      const directJson = await directRes.json();
+
+      if (directJson && directJson.success && Array.isArray(directJson.data) && directJson.data.length > 0) {
+        // Simpan ke cache lokal browser
+        localStorage.setItem('toyota_customers_cache', JSON.stringify(directJson.data));
+        
+        // Simpan ke backend server
+        await fetch('/api/excel/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'replace', customers: directJson.data })
+        });
+
+        showToast(`✅ Sukses! ${directJson.data.length} pelanggan dimuat langsung dari Google Spreadsheet.`);
+        await fetchDashboard(false);
+        return;
+      } else if (directJson && directJson.data && directJson.data.length === 0) {
+        showToast('ℹ️ Google Spreadsheet Anda saat ini masih kosong (hanya header).');
+        return;
+      }
+      throw new Error(directJson?.error || 'Respon Google Spreadsheet tidak valid');
+    } catch (directErr) {
+      showToast(`❌ Gagal tarik data: ${directErr.message}. Pastikan izin deployment Web App = "Anyone"`);
+    }
+  }
+
   // 1. Simpan & Hubungkan URL Google Apps Script Web App
   const formSaveGSheet = document.getElementById('formSaveGoogleSheetUrl');
   if (formSaveGSheet) {
@@ -1141,6 +1240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('⚠️ Masukkan URL Web App Google Apps Script (/exec) terlebih dahulu');
         return;
       }
+      localStorage.setItem('toyota_gsheet_url', url);
       showToast('⏳ Menghubungkan dan memverifikasi koneksi Google Spreadsheet...');
       try {
         const res = await fetch('/api/google-sheets/save-url', {
@@ -1154,7 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         showToast(`✅ ${data.message || 'Berhasil terhubung ke Google Spreadsheet!'}`);
-        fetchDashboard(false);
+        await executeGoogleSheetsPull();
       } catch (err) {
         showToast(`❌ Terjadi kesalahan: ${err.message}`);
       }
@@ -1164,24 +1264,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // 2. Tarik Data Terbaru dari Google Spreadsheet (Pull)
   const btnPullGSheet = document.getElementById('btnPullFromGSheet');
   if (btnPullGSheet) {
-    btnPullGSheet.addEventListener('click', async () => {
-      showToast('🔄 Menarik data pelanggan terbaru dari Google Spreadsheet...');
-      try {
-        const res = await fetch('/api/google-sheets/pull', { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
-          showToast(`❌ Gagal tarik data: ${data.error}`);
-          return;
-        }
-        showToast(`✅ Sukses! ${data.count} pelanggan dimuat dari Google Spreadsheet.`);
-        fetchDashboard(false);
-      } catch (err) {
-        showToast(`❌ Terjadi kesalahan: ${err.message}`);
-      }
-    });
+    btnPullGSheet.addEventListener('click', executeGoogleSheetsPull);
   }
 
-  // 3. Unggah Semua Data ke Google Spreadsheet (Push Backup)
+  // 3. Quick Pull langsung dari Toolbar Utama
+  const btnQuickPull = document.getElementById('btnQuickPullFromGSheet');
+  if (btnQuickPull) {
+    btnQuickPull.addEventListener('click', executeGoogleSheetsPull);
+  }
+
+  // 4. Unggah Semua Data ke Google Spreadsheet (Push Backup)
   const btnPushGSheet = document.getElementById('btnPushToGSheet');
   if (btnPushGSheet) {
     btnPushGSheet.addEventListener('click', async () => {
@@ -1201,7 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 4. Modal Panduan & Salin Script
+  // 5. Modal Panduan & Salin Script
   const btnOpenGScriptModal = document.getElementById('btnOpenGoogleScriptModal');
   const txtAreaGScript = document.getElementById('googleAppsScriptCodeArea');
   const dlgGScript = document.getElementById('dialogGoogleScript');
@@ -1246,32 +1338,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. Tombol Garis 3 (☰) Buka Menu Database & File Excel
+  // 6. Tombol Garis 3 (☰) Buka Menu Database & File Excel
   const btnToggleDbMenu = document.getElementById('btnToggleDatabaseMenu');
   const dlgDbMenu = document.getElementById('dialogDatabaseMenu');
   if (btnToggleDbMenu && dlgDbMenu) {
     btnToggleDbMenu.addEventListener('click', () => {
       dlgDbMenu.showModal();
-    });
-  }
-
-  // 6. Quick Pull langsung dari Toolbar Utama
-  const btnQuickPull = document.getElementById('btnQuickPullFromGSheet');
-  if (btnQuickPull) {
-    btnQuickPull.addEventListener('click', async () => {
-      showToast('🔄 Menarik data pelanggan terbaru dari Google Spreadsheet...');
-      try {
-        const res = await fetch('/api/google-sheets/pull', { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
-          showToast(`❌ Gagal tarik data: ${data.error || 'Periksa URL Google Sheets'}`);
-          return;
-        }
-        showToast(`✅ Sukses! ${data.count} pelanggan dimuat dari Google Spreadsheet.`);
-        fetchDashboard(false);
-      } catch (err) {
-        showToast(`❌ Terjadi kesalahan: ${err.message}`);
-      }
     });
   }
 

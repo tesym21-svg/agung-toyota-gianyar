@@ -259,8 +259,15 @@ const DEFAULT_CONFIG = {
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8');
-    return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    const bundledConfig = path.join(BUNDLED_DATA_DIR, 'config.json');
+    if (fs.existsSync(bundledConfig)) {
+      try {
+        const raw = fs.readFileSync(bundledConfig, 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, raw, 'utf-8');
+      } catch (_) {}
+    } else {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8');
+    }
   }
   try {
     const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
@@ -268,13 +275,17 @@ function loadConfig() {
     if (!mergedSmtp.user) mergedSmtp.user = DEFAULT_CONFIG.smtp.user;
     if (!mergedSmtp.pass) mergedSmtp.pass = DEFAULT_CONFIG.smtp.pass;
     if (mergedSmtp.user && mergedSmtp.pass) mergedSmtp.enabled = true;
-    return {
+    const finalCfg = {
       ...DEFAULT_CONFIG,
       ...raw,
       smtp: mergedSmtp,
       waGateway: { ...DEFAULT_CONFIG.waGateway, ...(raw.waGateway || {}) },
       templates: { ...DEFAULT_CONFIG.templates, ...(raw.templates || {}) }
     };
+    if (process.env.GOOGLE_SHEET_API_URL && !finalCfg.googleSheetApiUrl) {
+      finalCfg.googleSheetApiUrl = process.env.GOOGLE_SHEET_API_URL;
+    }
+    return finalCfg;
   } catch (e) {
     return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
@@ -285,7 +296,14 @@ function saveConfig(newConfig) {
     ...loadConfig(),
     ...newConfig
   };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+  } catch (_) {}
+  if (fs.existsSync(BUNDLED_DATA_DIR)) {
+    try {
+      fs.writeFileSync(path.join(BUNDLED_DATA_DIR, 'config.json'), JSON.stringify(merged, null, 2), 'utf-8');
+    } catch (_) {}
+  }
   return merged;
 }
 
@@ -1514,19 +1532,27 @@ app.post('/api/customers/reset-sample', async (req, res) => {
   }
 });
 
-// Upload Excel (.xlsx) via Base64 payload
+// Upload Excel (.xlsx) via Base64 payload OR JSON customers array
 app.post('/api/excel/upload', async (req, res) => {
   try {
-    const { base64Data, mode } = req.body;
-    if (!base64Data) return res.status(400).json({ ok: false, error: 'File Excel kosong' });
+    const { base64Data, mode, customers: directCustomers } = req.body;
+    let uploadedCustomers = [];
 
-    const buffer = Buffer.from(base64Data, 'base64');
-    const wb = XLSX.read(buffer, { type: 'buffer' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-    const uploadedCustomers = rawRows
-      .map((r, i) => mapExcelRowToCustomer(r, i + 1))
-      .filter(c => c.namaPelanggan !== '');
+    if (Array.isArray(directCustomers) && directCustomers.length > 0) {
+      uploadedCustomers = directCustomers
+        .map((r, i) => mapExcelRowToCustomer(r, i + 1))
+        .filter(c => c.namaPelanggan !== '');
+    } else if (base64Data) {
+      const buffer = Buffer.from(base64Data, 'base64');
+      const wb = XLSX.read(buffer, { type: 'buffer' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      uploadedCustomers = rawRows
+        .map((r, i) => mapExcelRowToCustomer(r, i + 1))
+        .filter(c => c.namaPelanggan !== '');
+    } else {
+      return res.status(400).json({ ok: false, error: 'File Excel atau data pelanggan kosong' });
+    }
 
     if (uploadedCustomers.length === 0) {
       return res.status(400).json({

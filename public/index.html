@@ -7,7 +7,58 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=20261022_3">
+  <script>
+    // Bulletproof Early Functions for Sidebar & Tabs
+    function toggleSidebar(forceState) {
+      var sidebar = document.getElementById('appSidebar');
+      var backdrop = document.getElementById('sidebarBackdrop');
+      if (!sidebar) return;
+      var isOpen = sidebar.classList.contains('open');
+      var targetState = forceState !== undefined ? forceState : !isOpen;
+      if (targetState) {
+        sidebar.classList.add('open');
+        if (backdrop) {
+          backdrop.classList.add('open');
+          backdrop.classList.add('active');
+          backdrop.style.display = 'block';
+        }
+        document.body.classList.add('sidebar-locked');
+      } else {
+        sidebar.classList.remove('open');
+        if (backdrop) {
+          backdrop.classList.remove('open');
+          backdrop.classList.remove('active');
+          backdrop.style.display = 'none';
+        }
+        document.body.classList.remove('sidebar-locked');
+      }
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-panel').forEach(function(p) {
+        p.classList.toggle('active', p.id === tabId);
+      });
+      document.querySelectorAll('.sidebar-nav-item[data-tab-nav]').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-tab-nav') === tabId);
+      });
+      toggleSidebar(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openDatabaseModal() {
+      toggleSidebar(false);
+      var dlg = document.getElementById('dialogDatabaseMenu');
+      if (dlg) {
+        if (typeof dlg.showModal === 'function') dlg.showModal();
+        else dlg.style.display = 'block';
+      }
+    }
+
+    window.toggleSidebar = toggleSidebar;
+    window.switchTab = switchTab;
+    window.openDatabaseModal = openDatabaseModal;
+  </script>
 </head>
 <body>
   <!-- ==================== ACCUCARE STYLE SIDEBAR DRAWER (MATCHING IMAGE 3) ==================== -->
@@ -29,7 +80,7 @@
       <!-- Navigation Menu Items (Matching Image 3) -->
       <div class="sidebar-nav-section-title">MENU UTAMA</div>
       <nav class="sidebar-nav-list">
-        <button type="button" class="sidebar-nav-item active" data-tab-nav="tab-excel">
+        <button type="button" class="sidebar-nav-item active" data-tab-nav="tab-excel" onclick="switchTab('tab-excel')">
           <span class="nav-item-left">
             <span class="nav-icon">👥</span>
             <span>Data Pelanggan</span>
@@ -37,7 +88,7 @@
           <span class="nav-badge badge-amber" id="sidebarBadgeCustomers">0</span>
         </button>
 
-        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-today">
+        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-today" onclick="switchTab('tab-today')">
           <span class="nav-item-left">
             <span class="nav-icon">🔔</span>
             <span>Antrean Pengingat Hari Ini</span>
@@ -45,7 +96,7 @@
           <span class="nav-badge badge-red" id="sidebarBadgePending">0</span>
         </button>
 
-        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-autopilot">
+        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-autopilot" onclick="switchTab('tab-autopilot')">
           <span class="nav-item-left">
             <span class="nav-icon">🤖</span>
             <span>Mesin Auto-Pilot &amp; WA QR</span>
@@ -53,7 +104,7 @@
           <span class="nav-badge badge-emerald" id="sidebarBadgeWa">QR</span>
         </button>
 
-        <button type="button" class="sidebar-nav-item" id="sidebarMenuBtnDatabase">
+        <button type="button" class="sidebar-nav-item" id="sidebarMenuBtnDatabase" onclick="openDatabaseModal()">
           <span class="nav-item-left">
             <span class="nav-icon">📊</span>
             <span>Database Spreadsheet &amp; Excel</span>
@@ -61,7 +112,7 @@
           <span class="nav-badge badge-sky" id="sidebarBadgeGsheet">2-Arah</span>
         </button>
 
-        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-connection">
+        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-connection" onclick="switchTab('tab-connection')">
           <span class="nav-item-left">
             <span class="nav-icon">📱</span>
             <span>Pengaturan WA &amp; Gmail</span>
@@ -69,7 +120,7 @@
           <span class="nav-chevron">›</span>
         </button>
 
-        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-templates">
+        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-templates" onclick="switchTab('tab-templates')">
           <span class="nav-item-left">
             <span class="nav-icon">✍️</span>
             <span>Template Pesan &amp; Jam WITA</span>
@@ -77,7 +128,7 @@
           <span class="nav-chevron">›</span>
         </button>
 
-        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-logs">
+        <button type="button" class="sidebar-nav-item" data-tab-nav="tab-logs" onclick="switchTab('tab-logs')">
           <span class="nav-item-left">
             <span class="nav-icon">📜</span>
             <span>Riwayat Terkirim</span>
@@ -212,28 +263,6 @@
         </div>
       </article>
     </section>
-
-    <!-- MAIN NAVIGATION TABS -->
-    <nav class="nav-tabs" aria-label="Menu Utama Sistem">
-      <button type="button" class="tab-btn active" data-tab="tab-excel">
-        📊 Data Pelanggan &amp; Spreadsheet
-      </button>
-      <button type="button" class="tab-btn" data-tab="tab-today">
-        🔔 Antrean Otomatis Hari Ini <span class="tab-counter" id="badgePendingToday">0</span>
-      </button>
-      <button type="button" class="tab-btn" data-tab="tab-autopilot">
-        🤖 Mesin Auto-Pilot &amp; WA QR
-      </button>
-      <button type="button" class="tab-btn" data-tab="tab-connection">
-        📱 Pengaturan WA &amp; Gmail
-      </button>
-      <button type="button" class="tab-btn" data-tab="tab-templates">
-        ✍️ Template Pesan &amp; Jam WITA
-      </button>
-      <button type="button" class="tab-btn" data-tab="tab-logs">
-        📜 Riwayat Terkirim
-      </button>
-    </nav>
 
     <!-- TAB 1: DATA PELANGGAN & EXCEL (HALAMAN UTAMA BERSIH & RAPI) -->
     <section id="tab-excel" class="tab-panel active">
@@ -897,6 +926,6 @@
   <!-- TOAST NOTIFICATION -->
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=20261022_3"></script>
 </body>
 </html>
