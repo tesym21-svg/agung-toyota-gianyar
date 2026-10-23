@@ -111,6 +111,7 @@ async function fetchDashboard(populateForms = false) {
     appState.stats = data.stats || {};
     appState.waState = data.waState || {};
     appState.logs = data.logs || [];
+    appState.deliveryIssuesToday = data.deliveryIssuesToday || [];
     appState.autoPilotStatusText = data.autoPilotStatusText || '';
 
     // LocalStorage Caching & Recovery
@@ -219,6 +220,56 @@ function renderHeaderAndStats(data) {
 
 function renderTodayReminders() {
   const container = document.getElementById('todayRemindersContainer');
+  const issuesContainer = document.getElementById('alertDeliveryIssuesContainer');
+
+  // Render Notifikasi & Reason Kendala Pengiriman Hari Ini
+  const issues = appState.deliveryIssuesToday || [];
+  if (issuesContainer) {
+    if (issues.length === 0) {
+      issuesContainer.classList.add('hidden');
+      issuesContainer.innerHTML = '';
+    } else {
+      issuesContainer.classList.remove('hidden');
+      issuesContainer.innerHTML = `
+        <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 26px;">⚠️</span>
+              <div>
+                <h4 style="margin: 0; color: #92400e; font-size: 14.5px; font-weight: 800;">
+                  Notifikasi Pengiriman Hari Ini: ${issues.length} Pesan Tidak Terkirim / Terkendala
+                </h4>
+                <p style="margin: 3px 0 0; font-size: 12px; color: #b45309;">
+                  Sesuai instruksi Anda: Pesan yang gagal/terkendala <strong>TIDAK dikirim ulang secara otomatis</strong> agar tidak terjadi pengulangan pesan ke inbox/pelanggan.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            ${issues.map(iss => `
+              <div style="background: #ffffff; border: 1px solid #fed7aa; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div>
+                  <strong>${escapeHtml(iss.namaPelanggan)}</strong> (${escapeHtml(iss.tipeMobil)} • <span style="font-weight:700;">${escapeHtml(iss.noPolisi)}</span>) — <span style="font-weight: 700; color: #c2410c;">${escapeHtml(iss.categoryTitle || iss.reminderType)}</span>
+                  <div style="color: #b91c1c; font-size: 12px; margin-top: 3px; font-weight: 600;">
+                    ⚠️ Alasan (Reason): ${escapeHtml(iss.reason || 'Koneksi WA / Email tidak tersedia')}
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 11.5px; color: var(--slate-500); font-weight: 600;">
+                    🕒 ${escapeHtml(iss.timestampWita)} • <em>Tidak diulang</em>
+                  </span>
+                  <button type="button" class="btn btn-outline btn-sm" data-action="send-single" data-id="${iss.customerId}" data-type="${iss.reminderType}" style="padding: 3px 8px; font-size: 11px;">
+                    🚀 Kirim Manual
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+  }
+
   const items = [];
   const tomorrowItems = [];
 
@@ -264,13 +315,43 @@ function renderTodayReminders() {
           ? `Expired Asuransi: ${formatDateIndoShort(cust.tglAsuransi)} (H-3)`
           : `Jadwal Next Service: ${formatDateIndoShort(cust.tglService)} (H-5)`;
 
-    const statusBadgeHtml = isTomorrow
-      ? `<span class="sent-pill pending" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;">
+    let statusBadgeHtml = '';
+    if (isTomorrow) {
+      statusBadgeHtml = `<span class="sent-pill pending" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;">
            🗓️ Terjadwal Otomatis Besok (${formatDateIndoShort(rem.scheduledDate)} • 10:00–14:00 WITA)
-         </span>`
-      : `<span class="sent-pill ${rem.alreadySentToday ? 'done' : 'pending'}">
-           ${rem.alreadySentToday ? '✓ WA & Gmail Terkirim' : '⏳ Menunggu Kirim (10:00–14:00 WITA)'}
          </span>`;
+    } else if (rem.alreadySentToday) {
+      const last = rem.lastLog;
+      if (!last || last.status === 'SUCCESS') {
+        statusBadgeHtml = `<span class="sent-pill done" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">
+             ✓ Terkirim Sukses (Selesai)
+           </span>`;
+      } else if (last.status === 'PARTIAL') {
+        statusBadgeHtml = `
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+            <span class="sent-pill" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;">
+              ⚠️ Sebagian Terkendala
+            </span>
+            <span style="font-size:11px;color:#c2410c;font-weight:600;max-width:240px;text-align:right;">
+              Alasan: ${escapeHtml(last.reason)} (Tidak diulang)
+            </span>
+          </div>`;
+      } else {
+        statusBadgeHtml = `
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+            <span class="sent-pill" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;">
+              ❌ Tidak Terkirim
+            </span>
+            <span style="font-size:11px;color:#b91c1c;font-weight:600;max-width:240px;text-align:right;">
+              Alasan: ${escapeHtml(last.reason)} (Tidak diulang)
+            </span>
+          </div>`;
+      }
+    } else {
+      statusBadgeHtml = `<span class="sent-pill pending">
+           ⏳ Menunggu Kirim (10:00–14:00 WITA)
+         </span>`;
+    }
 
     return `
       <article class="rem-card type-${escapeHtml(rem.type)}">

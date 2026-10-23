@@ -844,7 +844,7 @@ async function saveAllCustomers(customers, syncToCloud = true) {
 // ============================================================================
 // REMINDER EVALUATION ENGINE (4 TIPE PENGINGAT: ULTAH, SAMSAT, ASURANSI, SERVICE)
 // ============================================================================
-function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
+function evaluateCustomerReminders(customer, config, wita = getWitaParts(), logs = null) {
   const today = wita.dateStr;
   const todayMonthDay = wita.monthDay;
   const samsatAdvance = Number(config.samsatAdvanceDays ?? 3);
@@ -852,6 +852,12 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
   const serviceAdvance = Number(config.serviceAdvanceDays ?? 5);
 
   const reminders = [];
+
+  const getLatestLog = (remType) => {
+    if (!logs || !Array.isArray(logs)) return null;
+    const l = logs.find(item => item.dateWita === today && Number(item.customerId) === Number(customer.id) && item.reminderType === remType);
+    return l ? { status: l.status, reason: l.failureReason, time: l.timeWita || '' } : null;
+  };
 
   // 1. ULANG TAHUN (Hari H: MM-DD cocok dengan hari ini)
   let bdayMonthDay = '';
@@ -870,7 +876,8 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       targetDate: customer.tglUlangTahun,
       daysRemaining: 0,
       sentKey: bdaySentKey,
-      alreadySentToday: isBdaySentToday
+      alreadySentToday: isBdaySentToday,
+      lastLog: getLatestLog('ULTAH')
     });
   }
 
@@ -899,7 +906,8 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       targetDate: samsatTarget,
       daysRemaining: samsatDiff,
       sentKey: samsatSentKey,
-      alreadySentToday: isSamsatSentToday
+      alreadySentToday: isSamsatSentToday,
+      lastLog: getLatestLog('SAMSAT')
     });
   }
 
@@ -928,7 +936,8 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       targetDate: asuransiTarget,
       daysRemaining: asuransiDiff,
       sentKey: asuransiSentKey,
-      alreadySentToday: isAsuransiSentToday
+      alreadySentToday: isAsuransiSentToday,
+      lastLog: getLatestLog('ASURANSI')
     });
   }
 
@@ -945,7 +954,8 @@ function evaluateCustomerReminders(customer, config, wita = getWitaParts()) {
       targetDate: customer.tglService,
       daysRemaining: serviceDiff,
       sentKey: serviceSentKey,
-      alreadySentToday: isServiceSentToday
+      alreadySentToday: isServiceSentToday,
+      lastLog: getLatestLog('SERVICE')
     });
   }
 
@@ -1415,22 +1425,19 @@ async function executeReminderDispatch(customerId, reminderType, triggerSource =
     results.push({ target: 'Service Advisor (SA)', name: bundle.sa.name, wa: saWaRes, email: saEmailRes });
   }
 
-  // Tandai selesai di statusLog jika WA ATAU Email terkirim (agar TIDAK dikirim berulang-ulang)
-  const isRealWaSent = results.some(r => r.wa?.mode === 'WA_OTOMATIS_TERKIRIM' || r.wa?.mode === 'WA_GATEWAY');
-  const isRealEmailSent = results.some(r => r.email?.mode === 'GMAIL_OTOMATIS');
-
-  if (isRealWaSent || isRealEmailSent || triggerSource !== 'AUTO_PILOT_WITA') {
-    const sentTag = `${reminderType}:${wita.dateStr}`;
-    const existingTags = (customer.statusLog || '')
-      .split('|')
-      .map(s => s.trim())
-      .filter(Boolean);
-    if (!existingTags.includes(sentTag)) {
-      existingTags.push(sentTag);
-    }
-    customers[idx].statusLog = existingTags.join(' | ');
-    await saveAllCustomers(customers);
+  // Sesuai instruksi pengguna: Bila ada email atau WA yang tidak terkirim/gagal,
+  // TIDAK USAH dikirim ulang secara otomatis. Cukup catat reason dan notifikasinya.
+  // Tandai selesai di statusLog agar pengingat hari ini tidak pernah diulang-ulang.
+  const sentTag = `${reminderType}:${wita.dateStr}`;
+  const existingTags = (customer.statusLog || '')
+    .split('|')
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (!existingTags.includes(sentTag)) {
+    existingTags.push(sentTag);
   }
+  customers[idx].statusLog = existingTags.join(' | ');
+  await saveAllCustomers(customers);
 
   const logEntry = appendLog({
     triggerSource,
@@ -1547,7 +1554,8 @@ app.get('/api/dashboard', async (req, res) => {
   const config = loadConfig();
   const wita = getWitaParts();
   const customers = await getAllCustomers();
-  const evaluated = customers.map(c => evaluateCustomerReminders(c, config, wita));
+  const logs = loadLogs();
+  const evaluated = customers.map(c => evaluateCustomerReminders(c, config, wita, logs));
 
   const inOperationalHours = isTimeInRange(
     wita.shortTime,
@@ -1576,6 +1584,23 @@ app.get('/api/dashboard', async (req, res) => {
     )
   };
 
+  const todayLogs = logs.filter(l => l.dateWita === wita.dateStr);
+  const deliveryIssuesToday = todayLogs
+    .filter(l => l.status === 'FAILED' || l.status === 'PARTIAL')
+    .map(l => ({
+      id: l.id,
+      timestampWita: l.timestampWita,
+      customerId: l.customerId,
+      namaPelanggan: l.namaPelanggan,
+      noPolisi: l.noPolisi,
+      tipeMobil: l.tipeMobil,
+      reminderType: l.reminderType,
+      categoryTitle: l.categoryTitle,
+      status: l.status,
+      reason: l.failureReason,
+      results: l.results
+    }));
+
   res.json({
     wita,
     inOperationalHours,
@@ -1586,8 +1611,9 @@ app.get('/api/dashboard', async (req, res) => {
     waState,
     stats,
     config,
+    deliveryIssuesToday,
     customers: evaluated,
-    logs: loadLogs().slice(0, 50)
+    logs: logs.slice(0, 50)
   });
 });
 
