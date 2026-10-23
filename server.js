@@ -1222,19 +1222,11 @@ async function initWhatsAppClient() {
         }, 5000);
       }
       if (connection === 'close') {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         waState.status = 'DISCONNECTED';
         waState.qrDataUrl = null;
         waState.connectedNumber = null;
-        if (!shouldReconnect) {
-          try {
-            fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-          } catch (_) {}
-          setTimeout(() => initWhatsAppClient(), 2000);
-        } else {
-          setTimeout(() => initWhatsAppClient(), 4000);
-        }
+        // Jaga sesi dan kredensial WhatsApp tetap utuh di disk, sambungkan ulang otomatis
+        setTimeout(() => initWhatsAppClient(), 4000);
       }
     });
   } catch (err) {
@@ -1370,8 +1362,9 @@ async function sendEmailMessage(email, subject, text, html, config) {
 }
 
 // ============================================================================
-// DISPATCHER FOR PELANGGAN + SALES + SA
-// ============================================================================
+// In-Memory Anti-Spam Cache (Mencegah pengiriman ganda pada hari yang sama)
+const dispatchedTodaySet = new Set();
+
 async function executeReminderDispatch(customerId, reminderType, triggerSource = 'AUTO_PILOT_WITA') {
   const config = loadConfig();
   const customers = await getAllCustomers();
@@ -1379,6 +1372,13 @@ async function executeReminderDispatch(customerId, reminderType, triggerSource =
   if (idx === -1) {
     throw new Error(`Data pelanggan #${customerId} tidak ditemukan`);
   }
+
+  const wita = getWitaParts();
+  const dispatchKey = `${customerId}:${reminderType}:${wita.dateStr}`;
+  if (triggerSource === 'AUTO_PILOT_WITA' && dispatchedTodaySet.has(dispatchKey)) {
+    return { skipped: true, reason: 'Pengingat ini sudah terkirim hari ini' };
+  }
+  dispatchedTodaySet.add(dispatchKey);
 
   const customer = customers[idx];
   const bundle = buildMessagesForReminder(customer, reminderType, config);
@@ -1415,12 +1415,11 @@ async function executeReminderDispatch(customerId, reminderType, triggerSource =
     results.push({ target: 'Service Advisor (SA)', name: bundle.sa.name, wa: saWaRes, email: saEmailRes });
   }
 
-  // Tandai selesai di Excel jika WA terkirim DAN Email terkirim (atau jika dikirim manual)
+  // Tandai selesai di statusLog jika WA ATAU Email terkirim (agar TIDAK dikirim berulang-ulang)
   const isRealWaSent = results.some(r => r.wa?.mode === 'WA_OTOMATIS_TERKIRIM' || r.wa?.mode === 'WA_GATEWAY');
   const isRealEmailSent = results.some(r => r.email?.mode === 'GMAIL_OTOMATIS');
 
-  if ((isRealWaSent && isRealEmailSent) || (triggerSource !== 'AUTO_PILOT_WITA' && (isRealWaSent || isRealEmailSent))) {
-    const wita = getWitaParts();
+  if (isRealWaSent || isRealEmailSent || triggerSource !== 'AUTO_PILOT_WITA') {
     const sentTag = `${reminderType}:${wita.dateStr}`;
     const existingTags = (customer.statusLog || '')
       .split('|')
@@ -1480,8 +1479,9 @@ async function checkAndRunScheduledReminders(forceAll = false, triggerSource = '
       autoPilotStatusText = 'Auto-Pilot Dinonaktifkan';
       return { skipped: true, reason: autoPilotStatusText };
     }
-    if (!isWaReady && !isEmailReady) {
-      autoPilotStatusText = 'Standby — Menunggu Anda Scan QR WhatsApp (Begitu di-scan, pesan otomatis terkirim sendiri!)';
+    // WhatsApp adalah pengingat utama pelanggan: Auto-pilot menunggu WhatsApp terhubung agar tidak spam email
+    if (!isWaReady) {
+      autoPilotStatusText = 'Standby — Menunggu Anda Scan QR WhatsApp (Begitu terhubung, pesan WA & Email otomatis terkirim)';
       return { skipped: true, reason: autoPilotStatusText };
     }
     if (!inWaWindow) {
@@ -1535,10 +1535,10 @@ async function checkAndRunScheduledReminders(forceAll = false, triggerSource = '
   return { skipped: false, dispatchedCount: dispatched.length, dispatched };
 }
 
-// Run scheduler check every 20 seconds so it feels responsive as soon as QR is scanned or window opens!
+// Run scheduler check every 60 seconds
 setInterval(() => {
   checkAndRunScheduledReminders(false, 'AUTO_PILOT_WITA').catch(() => {});
-}, 20000);
+}, 60000);
 
 // ============================================================================
 // REST API ENDPOINTS
