@@ -1348,14 +1348,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSendAll = document.getElementById('btnSendAllPending');
   if (btnSendAll) btnSendAll.addEventListener('click', triggerSendAllToday);
 
-  // Quick Test Direct WA + Email Send Form on Front Page
-  const formQuickTestWa = document.getElementById('formQuickTestWa');
-  if (formQuickTestWa) {
-    formQuickTestWa.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const phone = (document.getElementById('inputQuickTestPhone')?.value || '').trim();
-      const email = (document.getElementById('inputQuickTestEmail')?.value || '').trim();
-      showToast(`📲✉️ Mengirim tes otomatis ke WA (${phone || '-'}) & Gmail (${email || '-'})...`);
+  // Quick Test Direct WA + Email Send Form (Both in Tab Autopilot & in Dedicated Menu Modal)
+  async function handleQuickTestSubmit(phone, email, submitBtn) {
+    if (!phone && !email) {
+      showToast('⚠️ Masukkan Nomor WA atau Alamat Email Gmail tujuan terlebih dahulu!');
+      return;
+    }
+    showToast(`📲✉️ Mengirim tes otomatis ke WA (${phone || '-'}) & Gmail (${email || '-'})...`);
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ Mengirim...';
+    }
+    try {
       const res = await fetch('/api/wa/test-direct', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1363,18 +1367,63 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        showToast(`⚠️ ${data.error}`);
+        showToast(`⚠️ ${data.error || 'Gagal mengirim tes.'}`);
         return;
       }
       const parts = [];
       if (data.result?.mode === 'WA_OTOMATIS_TERKIRIM') {
         parts.push(`✅ WA Terkirim (${data.result.recipient})`);
+      } else if (data.result?.mode === 'SIMULASI_BELUM_SCAN_QR') {
+        parts.push(`ℹ️ WA Simulasi (QR belum di-scan)`);
+      } else if (data.result?.reason) {
+        parts.push(`⚠️ WA: ${data.result.reason}`);
       }
+
       if (data.emailResult?.mode === 'GMAIL_OTOMATIS') {
         parts.push(`✅ Gmail Terkirim (${data.emailResult.recipient})`);
+      } else if (data.emailResult?.mode === 'SIMULASI_GMAIL') {
+        parts.push(`ℹ️ Gmail Simulasi`);
+      } else if (data.emailResult?.reason) {
+        parts.push(`⚠️ Email: ${data.emailResult.reason}`);
       }
-      showToast(parts.length ? parts.join(' & ') : 'ℹ️ Pengiriman selesai.');
+      showToast(parts.length ? parts.join(' | ') : 'ℹ️ Pengiriman selesai.');
+
+      // Close modal if open
+      const dlg = document.getElementById('dialogTestSend');
+      if (dlg && typeof dlg.close === 'function') {
+        try { dlg.close(); } catch (_) {}
+      }
+
       fetchDashboard(false);
+    } catch (err) {
+      showToast(`❌ Gagal: ${err.message}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '⚡ Tes Kirim WA & Gmail';
+      }
+    }
+  }
+
+  const formQuickTestWa = document.getElementById('formQuickTestWa');
+  if (formQuickTestWa) {
+    formQuickTestWa.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const phone = (document.getElementById('inputQuickTestPhone')?.value || '').trim();
+      const email = (document.getElementById('inputQuickTestEmail')?.value || '').trim();
+      const btn = formQuickTestWa.querySelector('button[type="submit"]');
+      handleQuickTestSubmit(phone, email, btn);
+    });
+  }
+
+  const formModalQuickTestWa = document.getElementById('formModalQuickTestWa');
+  if (formModalQuickTestWa) {
+    formModalQuickTestWa.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const phone = (document.getElementById('modalInputQuickTestPhone')?.value || '').trim();
+      const email = (document.getElementById('modalInputQuickTestEmail')?.value || '').trim();
+      const btn = formModalQuickTestWa.querySelector('button[type="submit"]');
+      handleQuickTestSubmit(phone, email, btn);
     });
   }
 

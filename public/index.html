@@ -55,9 +55,19 @@
       }
     }
 
+    function openTestSendModal() {
+      toggleSidebar(false);
+      var dlg = document.getElementById('dialogTestSend');
+      if (dlg) {
+        if (typeof dlg.showModal === 'function') dlg.showModal();
+        else dlg.style.display = 'block';
+      }
+    }
+
     window.toggleSidebar = toggleSidebar;
     window.switchTab = switchTab;
     window.openDatabaseModal = openDatabaseModal;
+    window.openTestSendModal = openTestSendModal;
   </script>
 </head>
 <body>
@@ -65,10 +75,12 @@
   <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
   <aside id="appSidebar" class="app-sidebar">
     <div class="sidebar-inner">
-      <!-- Sidebar Header -->
+      <!-- Sidebar Header (Official Agung Toyota Logo from Image 3) -->
       <div class="sidebar-header">
         <div class="sidebar-brand-box">
-          <div class="sidebar-logo-icon">🚗</div>
+          <div class="sidebar-logo-badge">
+            <img src="/images/agung-toyota-logo.png" alt="Agung Toyota" class="sidebar-brand-logo-img">
+          </div>
           <div>
             <h3 class="sidebar-brand-title">Agung Toyota Gianyar</h3>
             <p class="sidebar-brand-sub">Customer Care &amp; Reminder</p>
@@ -77,7 +89,7 @@
         <button type="button" class="btn-close-sidebar" id="btnCloseSidebar" onclick="toggleSidebar(false)" aria-label="Tutup Menu">✕</button>
       </div>
 
-      <!-- Navigation Menu Items (Matching Image 3) -->
+      <!-- Navigation Menu Items -->
       <div class="sidebar-nav-section-title">MENU UTAMA</div>
       <nav class="sidebar-nav-list">
         <button type="button" class="sidebar-nav-item active" data-tab-nav="tab-excel" onclick="switchTab('tab-excel')">
@@ -102,6 +114,14 @@
             <span>Mesin Auto-Pilot &amp; WA QR</span>
           </span>
           <span class="nav-badge badge-emerald" id="sidebarBadgeWa">QR</span>
+        </button>
+
+        <button type="button" class="sidebar-nav-item" id="sidebarMenuBtnTestSend" onclick="openTestSendModal()">
+          <span class="nav-item-left">
+            <span class="nav-icon">⚡</span>
+            <span>Tes Kirim WA &amp; Gmail</span>
+          </span>
+          <span class="nav-badge badge-emerald">Uji Coba</span>
         </button>
 
         <button type="button" class="sidebar-nav-item" id="sidebarMenuBtnDatabase" onclick="openDatabaseModal()">
@@ -136,9 +156,12 @@
           <span class="nav-chevron">›</span>
         </button>
       </nav>
-      <!-- Quick Database Actions in Drawer -->
-      <div class="sidebar-nav-section-title" style="margin-top: 18px;">AKSI CEPAT DATABASE</div>
+      <!-- Quick Actions in Drawer -->
+      <div class="sidebar-nav-section-title" style="margin-top: 18px;">AKSI CEPAT</div>
       <div style="display: flex; flex-direction: column; gap: 8px; padding: 0 4px; margin-bottom: 16px;">
+        <button type="button" class="btn btn-wa btn-sm" onclick="openTestSendModal();" style="justify-content: center; font-size: 12.5px; padding: 8px 12px; font-weight: 700;">
+          ⚡ Tes Kirim WA &amp; Gmail
+        </button>
         <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('dialogCustomerForm').showModal(); toggleSidebar(false);" style="justify-content: center; font-size: 12.5px; padding: 8px 12px;">
           ➕ Tambah Pelanggan Baru
         </button>
@@ -148,11 +171,11 @@
       </div>
     </div>
 
-    <!-- Sidebar Footer (Watermark like Image 3) -->
+    <!-- Sidebar Footer (Watermark text removed as requested) -->
     <div class="sidebar-footer">
       <div class="footer-dealer">Sistem Bengkel Resmi</div>
       <div class="footer-branch">Agung Toyota Gianyar</div>
-      <div class="footer-watermark">Watermark: <span class="highlight-mdp">Design by MDP</span></div>
+      <div class="footer-watermark"><span class="highlight-mdp">Design by MDP</span></div>
     </div>
   </aside>
 
@@ -165,11 +188,7 @@
           <span>Menu</span>
         </button>
         <div class="brand-emblem-mini" aria-hidden="true">
-          <svg viewBox="0 0 48 34" fill="none" xmlns="http://www.w3.org/2000/svg" class="toyota-mark-mini">
-            <ellipse cx="24" cy="17" rx="22" ry="14" stroke="currentColor" stroke-width="3"/>
-            <ellipse cx="24" cy="17" rx="7.5" ry="13.5" stroke="currentColor" stroke-width="2.6"/>
-            <ellipse cx="24" cy="10.5" rx="14.5" ry="5.5" stroke="currentColor" stroke-width="2.6"/>
-          </svg>
+          <img src="/images/agung-toyota-logo.png" alt="Agung Toyota" class="brand-logo-topbar-img">
         </div>
         <div class="brand-titles-slim">
           <div class="brand-title-line">
@@ -1161,9 +1180,55 @@
     </div>
   </dialog>
 
+  <!-- MODAL 6: TES KIRIM WA & GMAIL (UJI COBA MANDIRI) -->
+  <dialog id="dialogTestSend" closedby="any" aria-labelledby="titleTestSendModal" class="app-dialog dialog-md">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="titleTestSendModal">⚡ Uji Coba Pengiriman WA &amp; Gmail</h3>
+        <button type="button" class="btn-close-dialog" data-close-dialog="dialogTestSend" aria-label="Tutup">✕</button>
+      </div>
+      <form id="formModalQuickTestWa" action="/api/wa/test-direct" method="POST">
+        <div style="padding: 16px 20px;">
+          <p style="margin: 0 0 14px; font-size: 13.5px; color: var(--slate-600); line-height: 1.5;">
+            Gunakan menu ini untuk menguji pengiriman pesan WhatsApp resmi dan Email Gmail sebelum sistem mengirim otomatis ke data pelanggan Anda.
+          </p>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label for="modalInputQuickTestPhone" style="font-weight: 700; color: #0f172a; display: block; margin-bottom: 6px;">
+              📱 Nomor WhatsApp Tujuan:
+            </label>
+            <input type="tel" id="modalInputQuickTestPhone" name="phone" class="input-control" placeholder="Contoh: 082237563999 atau 6281805411412" style="font-size: 14px; padding: 10px 12px; width: 100%;">
+            <small class="field-hint" style="color: var(--slate-600); font-size: 11.5px; margin-top: 4px; display: block;">
+              Ketik nomor HP yang terpasang WhatsApp aktif untuk menerima tes pesan otomatis.
+            </small>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label for="modalInputQuickTestEmail" style="font-weight: 700; color: #0f172a; display: block; margin-bottom: 6px;">
+              ✉️ Alamat Email Gmail Tujuan:
+            </label>
+            <input type="email" id="modalInputQuickTestEmail" name="email" class="input-control" placeholder="Contoh: namaanda@gmail.com" style="font-size: 14px; padding: 10px 12px; width: 100%;">
+            <small class="field-hint" style="color: var(--slate-600); font-size: 11.5px; margin-top: 4px; display: block;">
+              Ketik alamat email Anda untuk menerima tes kartu email resmi Agung Toyota Gianyar.
+            </small>
+          </div>
+
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #1e40af; line-height: 1.4;">
+            💡 <strong>Info:</strong> Anda dapat mengisi No. WA saja, Email saja, atau keduanya sekaligus untuk diuji bersamaan.
+          </div>
+        </div>
+
+        <div class="dialog-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #f8fafc;">
+          <button type="button" class="btn btn-outline" data-close-dialog="dialogTestSend">Tutup</button>
+          <button type="submit" class="btn btn-wa" style="font-weight: 700; padding: 8px 18px;">⚡ Kirim Tes Sekarang</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
   <!-- TOAST NOTIFICATION -->
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-  <script src="/app.js?v=20261023_1"></script>
+  <script src="/app.js?v=20261028_1"></script>
 </body>
 </html>
