@@ -1,0 +1,274 @@
+{
+  "title": "KPI TEKNISI",
+  "periode": "1 - 20 OKTOBER 2026",
+  "summarySide": {
+    "targetBengkel": 558681846,
+    "pembagi": 14,
+    "targetPerTeknisi": 39905846,
+    "targetJamBengkel": 1800
+  },
+  "groups": [
+    {
+      "id": "grp-1",
+      "name": "GROUP I (WAHYU W.)",
+      "technicians": [
+        {
+          "id": "tek-1-1",
+          "no": 1,
+          "name": "I GEDE WAHYU PUTRA.A",
+          "targetJam": 129,
+          "aktualJam": 93,
+          "targetOmset": 39905846,
+          "aktualOmset": 20191570,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 1,
+          "sakit": 0,
+          "cuti": 1
+        },
+        {
+          "id": "tek-1-2",
+          "no": 2,
+          "name": "I WAYAN WITANA",
+          "targetJam": 129,
+          "aktualJam": 84,
+          "targetOmset": 39905846,
+          "aktualOmset": 21173300,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 2,
+          "sakit": 0,
+          "cuti": 0
+        },
+        {
+          "id": "tek-1-3",
+          "no": 3,
+          "name": "I PUTU EDY ADYANA",
+          "targetJam": 129,
+          "aktualJam": 75,
+          "targetOmset": 39905846,
+          "aktualOmset": 19505615,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 0,
+          "sakit": 0,
+          "cuti": 2
+        },
+        {
+          "id": "tek-1-4",
+          "no": 4,
+          "name": "I GUSTI NGURAH EKA SEPUTRA",
+          "targetJam": 129,
+          "aktualJam": 84,
+          "targetOmset": 39905846,
+          "aktualOmset": 20646365,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 2,
+          "sakit": 1,
+          "cuti": 0
+        }
+      ]
+    },
+    {
+      "id": "grp-2",
+      "name": "GROUP II (WIJAYA)",
+      "technicians": [
+        {
+          "id": "tek-2-1",
+          "no": 1,
+          "name": "I KADEK DWI WIRYADINATA",
+          "targetJam": 129,
+          "aktualJam": 62,
+          "targetOmset": 39905846,
+          "aktualOmset": 17604160,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 2,
+          "sakit": 0,
+          "cuti": 1
+        },
+        {
+          "id": "tek-2-2",
+          "no": 2,
+          "name": "AGUS SEPUTRO",
+          "targetJam": 129,
+          "aktualJam": 88,
+          "targetOmset": 39905846,
+          "aktualOmset": 22869865,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 0,
+          "sakit": 0,
+          "cuti": 0
+        },
+        {
+          "id": "tek-2-3",
+          "no": 3,
+          "name": "I KOMANG SUISTIKA",
+          "targetJam": 129,
+          "aktualJam": 81,
+          "targetOmset": 39905846,
+          "aktualOmset": 19762480,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 0,
+          "sakit": 0,
+          "cuti": 1
+        },
+        {
+          "id": "tek-2-4",
+          "no": 4,
+          "name": "LUKI ANDRIANTO",
+          "targetJam": 129,
+          "aktualJam": 81,
+          "targetOmset": 39905846,
+          "aktualOmset": 20787260,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 3,
+          "sakit": 0,
+          "cuti": 0
+        }
+      ]
+    },
+    {
+      "id": "grp-3",
+      "name": "GROUP III (HENDRAWAN)",
+      "technicians": [
+        {
+          "id": "tek-3-1",
+          "no": 1,
+          "name": "DEWA KETUT PUTRA",
+          "targetJam": 129,
+          "aktualJam": 71,
+          "targetOmset": 39905846,
+          "aktualOmset": 18790576,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 3,
+          "sakit": 1,
+          "cuti": 0
+        },
+        {
+          "id": "tek-3-2",
+          "no": 2,
+          "name": "I MADE ARYA PUTRA",
+          "targetJam": 129,
+          "aktualJam": 60,
+          "targetOmset": 39905846,
+          "aktualOmset": 15469705,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 2,
+          "sakit": 0,
+          "cuti": 2
+        },
+        {
+          "id": "tek-3-3",
+          "no": 3,
+          "name": "I MADE GINASTRA",
+          "targetJam": 129,
+          "aktualJam": 79,
+          "targetOmset": 39905846,
+          "aktualOmset": 18763450,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 1,
+          "sakit": 0,
+          "cuti": 0
+        },
+        {
+          "id": "tek-3-4",
+          "no": 4,
+          "name": "I KADEK SUPARTIKA",
+          "targetJam": 129,
+          "aktualJam": 85,
+          "targetOmset": 39905846,
+          "aktualOmset": 21643070,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 2,
+          "sakit": 0,
+          "cuti": 0
+        }
+      ]
+    },
+    {
+      "id": "grp-ths",
+      "name": "THS (TOYOTA HOME SERVICE)",
+      "technicians": [
+        {
+          "id": "tek-ths-1",
+          "no": 1,
+          "name": "I GUSTI NGURAH INDRAWAN",
+          "targetJam": 129,
+          "aktualJam": 78,
+          "targetOmset": 39905846,
+          "aktualOmset": 20601035,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 0,
+          "sakit": 0,
+          "cuti": 0
+        },
+        {
+          "id": "tek-ths-2",
+          "no": 2,
+          "name": "I KOMANG BUDA ARTA",
+          "targetJam": 129,
+          "aktualJam": 88,
+          "targetOmset": 39905846,
+          "aktualOmset": 23542955,
+          "hok": 10.5,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 0,
+          "sakit": 0,
+          "cuti": 0
+        }
+      ]
+    },
+    {
+      "id": "grp-pds",
+      "name": "PDS (PRE DELIVERY SERVICE)",
+      "technicians": [
+        {
+          "id": "tek-pds-1",
+          "no": 1,
+          "name": "PUTU PURWA BASKARA",
+          "targetJam": 0,
+          "aktualJam": 0,
+          "targetOmset": 0,
+          "aktualOmset": 0,
+          "hok": 0,
+          "lt": 0,
+          "ti": 0,
+          "cr7": 0,
+          "sakit": 0,
+          "cuti": 0,
+          "customNote": "NCS"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "TE : TINGKAT KECEPATAN TEKNISI DALAM BEKERJA",
+    "OP : TINGKAT PRODUKTIFITAS BENGKEL DALAM MEMANFAATKAN TEKNISI",
+    "LU : EFICIENCY PENGGUNAAN TEKNISI YANG ADA",
+    "# : POTENSI T.I / GRUP UNTUK LAPORAN TEKNIK"
+  ]
+}

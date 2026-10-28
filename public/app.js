@@ -2001,4 +2001,708 @@ document.addEventListener('DOMContentLoaded', () => {
       fetchReportAnalytics();
     });
   }
+
+  // Initialize KPI Teknisi Module
+  initKpiModule();
 });
+
+
+// ============================================================================
+// KPI TEKNISI MANAGEMENT MODULE (FULL EDITABLE & REALTIME RECALCULATION)
+// ============================================================================
+appState.kpiTeknisi = null;
+
+function formatRp(num) {
+  const val = Number(num) || 0;
+  return 'Rp ' + val.toLocaleString('id-ID');
+}
+
+function parseLocaleNumber(str) {
+  if (typeof str === 'number') return str;
+  if (!str) return 0;
+  const clean = String(str).replace(/[^0-9.-]/g, '');
+  return Number(clean) || 0;
+}
+
+async function fetchKpiTeknisi() {
+  try {
+    const res = await fetch('/api/kpi/teknisi');
+    const json = await res.json();
+    if (json.ok && json.data) {
+      appState.kpiTeknisi = json.data;
+      renderKpiTeknisiTable();
+    }
+  } catch (err) {
+    console.error('Gagal memuat KPI Teknisi:', err);
+  }
+}
+
+function renderKpiTeknisiTable() {
+  const kpi = appState.kpiTeknisi;
+  if (!kpi) return;
+
+  const periodeInput = document.getElementById('kpiPeriodeInput');
+  if (periodeInput && kpi.periode) {
+    periodeInput.value = kpi.periode;
+  }
+
+  const tbody = document.getElementById('kpiTableBody');
+  const tfoot = document.getElementById('kpiTableFoot');
+  if (!tbody || !tfoot) return;
+
+  let grandTargetJam = 0;
+  let grandAktualJam = 0;
+  let grandTargetOmset = 0;
+  let grandAktualOmset = 0;
+  let grandHok = 0;
+  let grandLt = 0;
+  let grandTi = 0;
+  let grandCr7 = 0;
+  let grandSakit = 0;
+  let grandCuti = 0;
+  let totalTeknisiCount = 0;
+
+  let bodyHtml = '';
+
+  (kpi.groups || []).forEach((grp) => {
+    // Group Header Row
+    bodyHtml += `
+      <tr class="kpi-group-header-row" data-grp-id="${grp.id}">
+        <td colspan="17">
+          <span class="kpi-group-tag">${escapeHtml(grp.name)}</span>
+        </td>
+      </tr>
+    `;
+
+    let grpTargetJam = 0;
+    let grpAktualJam = 0;
+    let grpTargetOmset = 0;
+    let grpAktualOmset = 0;
+    let grpHok = 0;
+    let grpLt = 0;
+    let grpTi = 0;
+    let grpCr7 = 0;
+    let grpSakit = 0;
+    let grpCuti = 0;
+
+    (grp.technicians || []).forEach((t, idx) => {
+      totalTeknisiCount++;
+      const targetJam = Number(t.targetJam) || 0;
+      const aktualJam = Number(t.aktualJam) || 0;
+      const gapJam = aktualJam - targetJam;
+      const atJam = targetJam > 0 ? (aktualJam / targetJam) : 0;
+      const atJamPct = Math.round(atJam * 100);
+
+      const targetOmset = Number(t.targetOmset) || 0;
+      const aktualOmset = Number(t.aktualOmset) || 0;
+      const gapOmset = aktualOmset - targetOmset;
+      const atOmset = targetOmset > 0 ? (aktualOmset / targetOmset) : 0;
+      const atOmsetPct = Math.round(atOmset * 100);
+
+      const hok = Number(t.hok) || 0;
+      const lt = Number(t.lt) || 0;
+      const ti = Number(t.ti) || 0;
+      const cr7 = Number(t.cr7) || 0;
+      const sakit = Number(t.sakit) || 0;
+      const cuti = Number(t.cuti) || 0;
+
+      grpTargetJam += targetJam;
+      grpAktualJam += aktualJam;
+      grpTargetOmset += targetOmset;
+      grpAktualOmset += aktualOmset;
+      grpHok += hok;
+      grpLt += lt;
+      grpTi += ti;
+      grpCr7 += cr7;
+      grpSakit += sakit;
+      grpCuti += cuti;
+
+      // Badges classes
+      const gapJamClass = gapJam >= 0 ? 'positive' : 'negative';
+      const gapOmsetClass = gapOmset >= 0 ? 'positive' : 'negative';
+      const atJamClass = atJamPct >= 80 ? 'high' : (atJamPct >= 60 ? 'med' : 'low');
+      const atOmsetClass = atOmsetPct >= 80 ? 'high' : (atOmsetPct >= 60 ? 'med' : 'low');
+
+      bodyHtml += `
+        <tr class="kpi-tech-row" data-grp-id="${grp.id}" data-tech-id="${t.id}">
+          <td style="text-align: center; font-weight: 700; color: #475569;">${t.no || (idx + 1)}</td>
+          <td>
+            <input type="text" class="kpi-cell-input kpi-input-name" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="name" value="${escapeHtml(t.name || '')}">
+          </td>
+
+          <!-- JAM TERJUAL -->
+          <td>
+            <input type="number" step="0.1" class="kpi-cell-input kpi-input-num" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="targetJam" value="${targetJam}">
+          </td>
+          <td>
+            <input type="number" step="0.1" class="kpi-cell-input kpi-input-num" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="aktualJam" value="${aktualJam}">
+          </td>
+          <td class="kpi-cell-gap ${gapJamClass}" id="gapJam_${t.id}">
+            ${gapJam > 0 ? '+' : ''}${gapJam}
+          </td>
+          <td class="kpi-cell-at">
+            <span class="at-badge ${atJamClass}" id="atJam_${t.id}">${atJamPct}%</span>
+          </td>
+
+          <!-- OMSET JASA -->
+          <td>
+            <input type="number" class="kpi-cell-input kpi-input-num" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="targetOmset" value="${targetOmset}">
+          </td>
+          <td>
+            <input type="number" class="kpi-cell-input kpi-input-num" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="aktualOmset" value="${aktualOmset}">
+          </td>
+          <td class="kpi-cell-gap ${gapOmsetClass}" id="gapOmset_${t.id}">
+            ${gapOmset > 0 ? '+' : ''}${formatRp(gapOmset)}
+          </td>
+          <td class="kpi-cell-at">
+            <span class="at-badge ${atOmsetClass}" id="atOmset_${t.id}">${atOmsetPct}%</span>
+          </td>
+
+          <!-- ABSENSI -->
+          <td>
+            <input type="number" step="0.5" class="kpi-cell-input kpi-input-sm" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="hok" value="${hok}">
+          </td>
+          <td>
+            <input type="number" class="kpi-cell-input kpi-input-sm" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="lt" value="${lt}">
+          </td>
+          <td>
+            <input type="number" class="kpi-cell-input kpi-input-sm" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="ti" value="${ti}">
+          </td>
+          <td>
+            <input type="number" class="kpi-cell-input kpi-input-sm" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="cr7" value="${cr7}">
+          </td>
+          <td>
+            <input type="number" class="kpi-cell-input kpi-input-sm" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="sakit" value="${sakit}">
+          </td>
+          <td>
+            <input type="number" class="kpi-cell-input kpi-input-sm" data-grp-id="${grp.id}" data-tech-id="${t.id}" data-field="cuti" value="${cuti}">
+          </td>
+
+          <!-- ACTION -->
+          <td style="text-align: center;">
+            <button type="button" class="btn-delete-tech" data-action="delete-tech" data-grp-id="${grp.id}" data-tech-id="${t.id}" title="Hapus teknisi ini">🗑️</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    // Group Subtotal Row
+    const grpGapJam = grpAktualJam - grpTargetJam;
+    const grpAtJam = grpTargetJam > 0 ? (grpAktualJam / grpTargetJam) : 0;
+    const grpAtJamPct = Math.round(grpAtJam * 100);
+
+    const grpGapOmset = grpAktualOmset - grpTargetOmset;
+    const grpAtOmset = grpTargetOmset > 0 ? (grpAktualOmset / grpTargetOmset) : 0;
+    const grpAtOmsetPct = Math.round(grpAtOmset * 100);
+
+    const grpGapJamClass = grpGapJam >= 0 ? 'positive' : 'negative';
+    const grpGapOmsetClass = grpGapOmset >= 0 ? 'positive' : 'negative';
+    const grpAtJamClass = grpAtJamPct >= 80 ? 'high' : (grpAtJamPct >= 60 ? 'med' : 'low');
+    const grpAtOmsetClass = grpAtOmsetPct >= 80 ? 'high' : (grpAtOmsetPct >= 60 ? 'med' : 'low');
+
+    bodyHtml += `
+      <tr class="kpi-group-total-row" id="grpTotalRow_${grp.id}">
+        <td style="text-align: center; font-weight: 800;">TOTAL</td>
+        <td class="td-label">SUBTOTAL ${escapeHtml(grp.name)}</td>
+        <td style="text-align: right;" id="grpTargetJam_${grp.id}">${grpTargetJam}</td>
+        <td style="text-align: right;" id="grpAktualJam_${grp.id}">${grpAktualJam}</td>
+        <td class="kpi-cell-gap ${grpGapJamClass}" id="grpGapJam_${grp.id}">${grpGapJam > 0 ? '+' : ''}${grpGapJam}</td>
+        <td class="kpi-cell-at"><span class="at-badge ${grpAtJamClass}" id="grpAtJam_${grp.id}">${grpAtJamPct}%</span></td>
+
+        <td style="text-align: right;" id="grpTargetOmset_${grp.id}">${formatRp(grpTargetOmset)}</td>
+        <td style="text-align: right;" id="grpAktualOmset_${grp.id}">${formatRp(grpAktualOmset)}</td>
+        <td class="kpi-cell-gap ${grpGapOmsetClass}" id="grpGapOmset_${grp.id}">${grpGapOmset > 0 ? '+' : ''}${formatRp(grpGapOmset)}</td>
+        <td class="kpi-cell-at"><span class="at-badge ${grpAtOmsetClass}" id="grpAtOmset_${grp.id}">${grpAtOmsetPct}%</span></td>
+
+        <td style="text-align: center;" id="grpHok_${grp.id}">${grpHok}</td>
+        <td style="text-align: center;" id="grpLt_${grp.id}">${grpLt}</td>
+        <td style="text-align: center;" id="grpTi_${grp.id}">${grpTi}</td>
+        <td style="text-align: center;" id="grpCr7_${grp.id}">${grpCr7}</td>
+        <td style="text-align: center;" id="grpSakit_${grp.id}">${grpSakit}</td>
+        <td style="text-align: center;" id="grpCuti_${grp.id}">${grpCuti}</td>
+        <td></td>
+      </tr>
+    `;
+
+    grandTargetJam += grpTargetJam;
+    grandAktualJam += grpAktualJam;
+    grandTargetOmset += grpTargetOmset;
+    grandAktualOmset += grpAktualOmset;
+    grandHok += grpHok;
+    grandLt += grpLt;
+    grandTi += grpTi;
+    grandCr7 += grpCr7;
+    grandSakit += grpSakit;
+    grandCuti += grpCuti;
+  });
+
+  tbody.innerHTML = bodyHtml;
+
+  // Grand Total Footer Row
+  const grandGapJam = grandAktualJam - grandTargetJam;
+  const grandAtJam = grandTargetJam > 0 ? (grandAktualJam / grandTargetJam) : 0;
+  const grandAtJamPct = Math.round(grandAtJam * 100);
+
+  const grandGapOmset = grandAktualOmset - grandTargetOmset;
+  const grandAtOmset = grandTargetOmset > 0 ? (grandAktualOmset / grandTargetOmset) : 0;
+  const grandAtOmsetPct = Math.round(grandAtOmset * 100);
+
+  const grandGapJamClass = grandGapJam >= 0 ? 'positive' : 'negative';
+  const grandGapOmsetClass = grandGapOmset >= 0 ? 'positive' : 'negative';
+  const grandAtJamClass = grandAtJamPct >= 80 ? 'high' : (grandAtJamPct >= 60 ? 'med' : 'low');
+  const grandAtOmsetClass = grandAtOmsetPct >= 80 ? 'high' : (grandAtOmsetPct >= 60 ? 'med' : 'low');
+
+  tfoot.innerHTML = `
+    <tr class="kpi-grand-total-row">
+      <td colspan="2" style="text-align: left; padding-left: 16px; font-weight: 900; letter-spacing: 0.5px;">
+        🌟 GRAND TOTAL BENGKEL
+      </td>
+      <td style="text-align: right;" id="grandTargetJam">${grandTargetJam}</td>
+      <td style="text-align: right;" id="grandAktualJam">${grandAktualJam}</td>
+      <td class="kpi-cell-gap ${grandGapJamClass}" id="grandGapJam">${grandGapJam > 0 ? '+' : ''}${grandGapJam}</td>
+      <td class="kpi-cell-at"><span class="at-badge ${grandAtJamClass}" id="grandAtJam">${grandAtJamPct}%</span></td>
+
+      <td style="text-align: right;" id="grandTargetOmset">${formatRp(grandTargetOmset)}</td>
+      <td style="text-align: right;" id="grandAktualOmset">${formatRp(grandAktualOmset)}</td>
+      <td class="kpi-cell-gap ${grandGapOmsetClass}" id="grandGapOmset">${grandGapOmset > 0 ? '+' : ''}${formatRp(grandGapOmset)}</td>
+      <td class="kpi-cell-at"><span class="at-badge ${grandAtOmsetClass}" id="grandAtOmset">${grandAtOmsetPct}%</span></td>
+
+      <td style="text-align: center;" id="grandHok">${grandHok}</td>
+      <td style="text-align: center;" id="grandLt">${grandLt}</td>
+      <td style="text-align: center;" id="grandTi">${grandTi}</td>
+      <td style="text-align: center;" id="grandCr7">${grandCr7}</td>
+      <td style="text-align: center;" id="grandSakit">${grandSakit}</td>
+      <td style="text-align: center;" id="grandCuti">${grandCuti}</td>
+      <td></td>
+    </tr>
+  `;
+
+  // Update Summary KPI Cards
+  updateKpiSummaryCards(grandTargetJam, grandAktualJam, grandGapJam, grandAtJamPct, grandTargetOmset, grandAktualOmset, grandGapOmset, grandAtOmsetPct, totalTeknisiCount);
+}
+
+function updateKpiSummaryCards(targetJam, aktJam, gapJam, atJamPct, targetOmset, aktOmset, gapOmset, atOmsetPct, totalTeknisi) {
+  const sumAktualJam = document.getElementById('sumAktualJam');
+  const sumTargetJam = document.getElementById('sumTargetJam');
+  const sumAtJam = document.getElementById('sumAtJam');
+  const sumGapJamBadge = document.getElementById('sumGapJamBadge');
+
+  if (sumAktualJam) sumAktualJam.textContent = Number(aktJam).toLocaleString('id-ID');
+  if (sumTargetJam) sumTargetJam.textContent = Number(targetJam).toLocaleString('id-ID');
+  if (sumAtJam) sumAtJam.textContent = atJamPct + '%';
+  if (sumGapJamBadge) {
+    sumGapJamBadge.textContent = 'GAP: ' + (gapJam > 0 ? '+' : '') + gapJam;
+    sumGapJamBadge.className = 'gap-badge ' + (gapJam >= 0 ? 'positive' : 'negative');
+  }
+
+  const sumAktualOmset = document.getElementById('sumAktualOmset');
+  const sumTargetOmset = document.getElementById('sumTargetOmset');
+  const sumAtOmset = document.getElementById('sumAtOmset');
+  const sumGapOmset = document.getElementById('sumGapOmset');
+  const sumGapOmsetDesc = document.getElementById('sumGapOmsetDesc');
+
+  if (sumAktualOmset) sumAktualOmset.textContent = formatRp(aktOmset);
+  if (sumTargetOmset) sumTargetOmset.textContent = formatRp(targetOmset);
+  if (sumAtOmset) {
+    sumAtOmset.textContent = atOmsetPct + '%';
+    sumAtOmset.className = 'at-badge ' + (atOmsetPct >= 80 ? 'high' : (atOmsetPct >= 60 ? 'med' : 'low'));
+  }
+  if (sumGapOmset) {
+    sumGapOmset.textContent = (gapOmset > 0 ? '+' : '') + formatRp(gapOmset);
+    sumGapOmset.style.color = gapOmset >= 0 ? '#16a34a' : '#dc2626';
+  }
+  if (sumGapOmsetDesc) {
+    sumGapOmsetDesc.textContent = gapOmset >= 0 ? 'Surplus / Melampaui Target' : 'Defisit terhadap Target';
+  }
+
+  const sumTotalTeknisi = document.getElementById('sumTotalTeknisi');
+  if (sumTotalTeknisi) sumTotalTeknisi.textContent = totalTeknisi;
+}
+
+// Live Recalculation handler for KPI Table Inputs
+function setupKpiTableEvents() {
+  const tbody = document.getElementById('kpiTableBody');
+  if (!tbody) return;
+
+  tbody.addEventListener('input', (e) => {
+    const input = e.target;
+    if (!input.classList.contains('kpi-cell-input')) return;
+
+    const grpId = input.getAttribute('data-grp-id');
+    const techId = input.getAttribute('data-tech-id');
+    const field = input.getAttribute('data-field');
+    const val = input.value;
+
+    if (!appState.kpiTeknisi || !appState.kpiTeknisi.groups) return;
+
+    const grp = appState.kpiTeknisi.groups.find(g => g.id === grpId);
+    if (!grp) return;
+    const tech = (grp.technicians || []).find(t => t.id === techId);
+    if (!tech) return;
+
+    if (field === 'name') {
+      tech.name = val;
+    } else {
+      tech[field] = Number(val) || 0;
+    }
+
+    // Indicate unsaved changes
+    const badge = document.getElementById('kpiSaveStatusBadge');
+    if (badge) {
+      badge.textContent = '● Perubahan Belum Disimpan';
+      badge.className = 'kpi-live-save-status saving';
+    }
+
+    // Live update row's GAP & A/T %
+    const targetJam = Number(tech.targetJam) || 0;
+    const aktJam = Number(tech.aktualJam) || 0;
+    const gapJam = aktJam - targetJam;
+    const atJamPct = targetJam > 0 ? Math.round((aktJam / targetJam) * 100) : 0;
+
+    const gapJamCell = document.getElementById('gapJam_' + techId);
+    if (gapJamCell) {
+      gapJamCell.textContent = (gapJam > 0 ? '+' : '') + gapJam;
+      gapJamCell.className = 'kpi-cell-gap ' + (gapJam >= 0 ? 'positive' : 'negative');
+    }
+    const atJamBadge = document.getElementById('atJam_' + techId);
+    if (atJamBadge) {
+      atJamBadge.textContent = atJamPct + '%';
+      atJamBadge.className = 'at-badge ' + (atJamPct >= 80 ? 'high' : (atJamPct >= 60 ? 'med' : 'low'));
+    }
+
+    const targetOmset = Number(tech.targetOmset) || 0;
+    const aktOmset = Number(tech.aktualOmset) || 0;
+    const gapOmset = aktOmset - targetOmset;
+    const atOmsetPct = targetOmset > 0 ? Math.round((aktOmset / targetOmset) * 100) : 0;
+
+    const gapOmsetCell = document.getElementById('gapOmset_' + techId);
+    if (gapOmsetCell) {
+      gapOmsetCell.textContent = (gapOmset > 0 ? '+' : '') + formatRp(gapOmset);
+      gapOmsetCell.className = 'kpi-cell-gap ' + (gapOmset >= 0 ? 'positive' : 'negative');
+    }
+    const atOmsetBadge = document.getElementById('atOmset_' + techId);
+    if (atOmsetBadge) {
+      atOmsetBadge.textContent = atOmsetPct + '%';
+      atOmsetBadge.className = 'at-badge ' + (atOmsetPct >= 80 ? 'high' : (atOmsetPct >= 60 ? 'med' : 'low'));
+    }
+
+    // Recalculate Group Totals & Grand Totals
+    recalcKpiTotals();
+  });
+
+  tbody.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="delete-tech"]');
+    if (!btn) return;
+
+    const grpId = btn.getAttribute('data-grp-id');
+    const techId = btn.getAttribute('data-tech-id');
+
+    if (!appState.kpiTeknisi || !appState.kpiTeknisi.groups) return;
+    const grp = appState.kpiTeknisi.groups.find(g => g.id === grpId);
+    if (!grp) return;
+
+    const tech = (grp.technicians || []).find(t => t.id === techId);
+    if (!tech) return;
+
+    if (confirm(`Hapus teknisi "${tech.name}" dari ${grp.name}?`)) {
+      grp.technicians = grp.technicians.filter(t => t.id !== techId);
+      renderKpiTeknisiTable();
+      saveKpiToServer(false);
+    }
+  });
+}
+
+function recalcKpiTotals() {
+  const kpi = appState.kpiTeknisi;
+  if (!kpi || !kpi.groups) return;
+
+  let grandTargetJam = 0;
+  let grandAktualJam = 0;
+  let grandTargetOmset = 0;
+  let grandAktualOmset = 0;
+  let grandHok = 0;
+  let grandLt = 0;
+  let grandTi = 0;
+  let grandCr7 = 0;
+  let grandSakit = 0;
+  let grandCuti = 0;
+  let totalTeknisi = 0;
+
+  kpi.groups.forEach(grp => {
+    let grpTargetJam = 0;
+    let grpAktualJam = 0;
+    let grpTargetOmset = 0;
+    let grpAktualOmset = 0;
+    let grpHok = 0;
+    let grpLt = 0;
+    let grpTi = 0;
+    let grpCr7 = 0;
+    let grpSakit = 0;
+    let grpCuti = 0;
+
+    (grp.technicians || []).forEach(t => {
+      totalTeknisi++;
+      grpTargetJam += Number(t.targetJam) || 0;
+      grpAktualJam += Number(t.aktualJam) || 0;
+      grpTargetOmset += Number(t.targetOmset) || 0;
+      grpAktualOmset += Number(t.aktualOmset) || 0;
+      grpHok += Number(t.hok) || 0;
+      grpLt += Number(t.lt) || 0;
+      grpTi += Number(t.ti) || 0;
+      grpCr7 += Number(t.cr7) || 0;
+      grpSakit += Number(t.sakit) || 0;
+      grpCuti += Number(t.cuti) || 0;
+    });
+
+    const grpGapJam = grpAktualJam - grpTargetJam;
+    const grpAtJamPct = grpTargetJam > 0 ? Math.round((grpAktualJam / grpTargetJam) * 100) : 0;
+    const grpGapOmset = grpAktualOmset - grpTargetOmset;
+    const grpAtOmsetPct = grpTargetOmset > 0 ? Math.round((grpAktualOmset / grpTargetOmset) * 100) : 0;
+
+    const elTargetJam = document.getElementById('grpTargetJam_' + grp.id);
+    if (elTargetJam) elTargetJam.textContent = grpTargetJam;
+    const elAktJam = document.getElementById('grpAktualJam_' + grp.id);
+    if (elAktJam) elAktJam.textContent = grpAktualJam;
+    const elGapJam = document.getElementById('grpGapJam_' + grp.id);
+    if (elGapJam) {
+      elGapJam.textContent = (grpGapJam > 0 ? '+' : '') + grpGapJam;
+      elGapJam.className = 'kpi-cell-gap ' + (grpGapJam >= 0 ? 'positive' : 'negative');
+    }
+    const elAtJam = document.getElementById('grpAtJam_' + grp.id);
+    if (elAtJam) {
+      elAtJam.textContent = grpAtJamPct + '%';
+      elAtJam.className = 'at-badge ' + (grpAtJamPct >= 80 ? 'high' : (grpAtJamPct >= 60 ? 'med' : 'low'));
+    }
+
+    const elTargetOmset = document.getElementById('grpTargetOmset_' + grp.id);
+    if (elTargetOmset) elTargetOmset.textContent = formatRp(grpTargetOmset);
+    const elAktOmset = document.getElementById('grpAktualOmset_' + grp.id);
+    if (elAktOmset) elAktOmset.textContent = formatRp(grpAktualOmset);
+    const elGapOmset = document.getElementById('grpGapOmset_' + grp.id);
+    if (elGapOmset) {
+      elGapOmset.textContent = (grpGapOmset > 0 ? '+' : '') + formatRp(grpGapOmset);
+      elGapOmset.className = 'kpi-cell-gap ' + (grpGapOmset >= 0 ? 'positive' : 'negative');
+    }
+    const elAtOmset = document.getElementById('grpAtOmset_' + grp.id);
+    if (elAtOmset) {
+      elAtOmset.textContent = grpAtOmsetPct + '%';
+      elAtOmset.className = 'at-badge ' + (grpAtOmsetPct >= 80 ? 'high' : (grpAtOmsetPct >= 60 ? 'med' : 'low'));
+    }
+
+    const elHok = document.getElementById('grpHok_' + grp.id);
+    if (elHok) elHok.textContent = grpHok;
+    const elLt = document.getElementById('grpLt_' + grp.id);
+    if (elLt) elLt.textContent = grpLt;
+    const elTi = document.getElementById('grpTi_' + grp.id);
+    if (elTi) elTi.textContent = grpTi;
+    const elCr7 = document.getElementById('grpCr7_' + grp.id);
+    if (elCr7) elCr7.textContent = grpCr7;
+    const elSakit = document.getElementById('grpSakit_' + grp.id);
+    if (elSakit) elSakit.textContent = grpSakit;
+    const elCuti = document.getElementById('grpCuti_' + grp.id);
+    if (elCuti) elCuti.textContent = grpCuti;
+
+    grandTargetJam += grpTargetJam;
+    grandAktualJam += grpAktualJam;
+    grandTargetOmset += grpTargetOmset;
+    grandAktualOmset += grpAktualOmset;
+    grandHok += grpHok;
+    grandLt += grpLt;
+    grandTi += grpTi;
+    grandCr7 += grpCr7;
+    grandSakit += grpSakit;
+    grandCuti += grpCuti;
+  });
+
+  const grandGapJam = grandAktualJam - grandTargetJam;
+  const grandAtJamPct = grandTargetJam > 0 ? Math.round((grandAktualJam / grandTargetJam) * 100) : 0;
+  const grandGapOmset = grandAktualOmset - grandTargetOmset;
+  const grandAtOmsetPct = grandTargetOmset > 0 ? Math.round((grandAktualOmset / grandTargetOmset) * 100) : 0;
+
+  const elGTargetJam = document.getElementById('grandTargetJam');
+  if (elGTargetJam) elGTargetJam.textContent = grandTargetJam;
+  const elGAktJam = document.getElementById('grandAktualJam');
+  if (elGAktJam) elGAktJam.textContent = grandAktualJam;
+  const elGGapJam = document.getElementById('grandGapJam');
+  if (elGGapJam) {
+    elGGapJam.textContent = (grandGapJam > 0 ? '+' : '') + grandGapJam;
+    elGGapJam.className = 'kpi-cell-gap ' + (grandGapJam >= 0 ? 'positive' : 'negative');
+  }
+  const elGAtJam = document.getElementById('grandAtJam');
+  if (elGAtJam) {
+    elGAtJam.textContent = grandAtJamPct + '%';
+    elGAtJam.className = 'at-badge ' + (grandAtJamPct >= 80 ? 'high' : (grandAtJamPct >= 60 ? 'med' : 'low'));
+  }
+
+  const elGTargetOmset = document.getElementById('grandTargetOmset');
+  if (elGTargetOmset) elGTargetOmset.textContent = formatRp(grandTargetOmset);
+  const elGAktOmset = document.getElementById('grandAktualOmset');
+  if (elGAktOmset) elGAktOmset.textContent = formatRp(grandAktualOmset);
+  const elGGapOmset = document.getElementById('grandGapOmset');
+  if (elGGapOmset) {
+    elGGapOmset.textContent = (grandGapOmset > 0 ? '+' : '') + formatRp(grandGapOmset);
+    elGGapOmset.className = 'kpi-cell-gap ' + (grandGapOmset >= 0 ? 'positive' : 'negative');
+  }
+  const elGAtOmset = document.getElementById('grandAtOmset');
+  if (elGAtOmset) {
+    elGAtOmset.textContent = grandAtOmsetPct + '%';
+    elGAtOmset.className = 'at-badge ' + (grandAtOmsetPct >= 80 ? 'high' : (grandAtOmsetPct >= 60 ? 'med' : 'low'));
+  }
+
+  const elGHok = document.getElementById('grandHok');
+  if (elGHok) elGHok.textContent = grandHok;
+  const elGLt = document.getElementById('grandLt');
+  if (elGLt) elGLt.textContent = grandLt;
+  const elGTi = document.getElementById('grandTi');
+  if (elGTi) elGTi.textContent = grandTi;
+  const elGCr7 = document.getElementById('grandCr7');
+  if (elGCr7) elGCr7.textContent = grandCr7;
+  const elGSakit = document.getElementById('grandSakit');
+  if (elGSakit) elGSakit.textContent = grandSakit;
+  const elGCuti = document.getElementById('grandCuti');
+  if (elGCuti) elGCuti.textContent = grandCuti;
+
+  updateKpiSummaryCards(grandTargetJam, grandAktualJam, grandGapJam, grandAtJamPct, grandTargetOmset, grandAktualOmset, grandGapOmset, grandAtOmsetPct, totalTeknisi);
+}
+
+async function saveKpiToServer(showToastMsg = true) {
+  if (!appState.kpiTeknisi) return;
+
+  const periodeInput = document.getElementById('kpiPeriodeInput');
+  if (periodeInput) {
+    appState.kpiTeknisi.periode = periodeInput.value.trim();
+  }
+
+  const badge = document.getElementById('kpiSaveStatusBadge');
+  if (badge) {
+    badge.textContent = '⏳ Menyimpan...';
+    badge.className = 'kpi-live-save-status saving';
+  }
+
+  try {
+    const res = await fetch('/api/kpi/teknisi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appState.kpiTeknisi)
+    });
+    const json = await res.json();
+    if (json.ok) {
+      if (badge) {
+        badge.textContent = '✓ Tersimpan di Sistem';
+        badge.className = 'kpi-live-save-status';
+      }
+      if (showToastMsg) {
+        showToast('✅ Data KPI Teknisi berhasil disimpan ke Excel & Server!');
+      }
+    } else {
+      throw new Error(json.error || 'Gagal menyimpan');
+    }
+  } catch (err) {
+    if (badge) {
+      badge.textContent = '⚠️ Gagal Simpan';
+      badge.className = 'kpi-live-save-status saving';
+    }
+    showToast('❌ Gagal menyimpan KPI: ' + err.message);
+  }
+}
+
+function initKpiModule() {
+  setupKpiTableEvents();
+
+  const btnSave = document.getElementById('btnSaveKpi');
+  if (btnSave) {
+    btnSave.addEventListener('click', () => saveKpiToServer(true));
+  }
+
+  const periodeInput = document.getElementById('kpiPeriodeInput');
+  if (periodeInput) {
+    periodeInput.addEventListener('change', () => {
+      if (appState.kpiTeknisi) {
+        appState.kpiTeknisi.periode = periodeInput.value.trim();
+        saveKpiToServer(false);
+      }
+    });
+  }
+
+  const btnAdd = document.getElementById('btnAddTechnicianBtn');
+  if (btnAdd) {
+    btnAdd.addEventListener('click', () => {
+      const dlg = document.getElementById('dialogAddTechnician');
+      if (dlg) {
+        if (typeof dlg.showModal === 'function') dlg.showModal();
+        else dlg.style.display = 'block';
+      }
+    });
+  }
+
+  const formAdd = document.getElementById('formAddTechnician');
+  if (formAdd) {
+    formAdd.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const grpId = document.getElementById('selectTechGroup')?.value;
+      const name = (document.getElementById('inputNewTechName')?.value || '').trim();
+      const targetJam = Number(document.getElementById('inputNewTechTargetJam')?.value) || 0;
+      const aktJam = Number(document.getElementById('inputNewTechAktualJam')?.value) || 0;
+      const targetOmset = Number(document.getElementById('inputNewTechTargetOmset')?.value) || 0;
+      const aktOmset = Number(document.getElementById('inputNewTechAktualOmset')?.value) || 0;
+      const hok = Number(document.getElementById('inputNewTechHok')?.value) || 10.5;
+
+      if (!name) {
+        showToast('⚠️ Nama teknisi wajib diisi!');
+        return;
+      }
+
+      if (!appState.kpiTeknisi || !appState.kpiTeknisi.groups) return;
+      const grp = appState.kpiTeknisi.groups.find(g => g.id === grpId);
+      if (!grp) return;
+
+      const newId = 'tek-' + Date.now();
+      const newNo = (grp.technicians || []).length + 1;
+
+      grp.technicians.push({
+        id: newId,
+        no: newNo,
+        name,
+        targetJam,
+        aktualJam: aktJam,
+        targetOmset,
+        aktualOmset: aktOmset,
+        hok,
+        lt: 0,
+        ti: 0,
+        cr7: 0,
+        sakit: 0,
+        cuti: 0
+      });
+
+      const dlg = document.getElementById('dialogAddTechnician');
+      if (dlg && typeof dlg.close === 'function') dlg.close();
+      formAdd.reset();
+
+      renderKpiTeknisiTable();
+      saveKpiToServer(true);
+      showToast(`✅ Teknisi "${name}" berhasil ditambahkan ke ${grp.name}!`);
+    });
+  }
+
+  const btnReset = document.getElementById('btnResetKpi');
+  if (btnReset) {
+    btnReset.addEventListener('click', async () => {
+      if (confirm('Yakin ingin me-reset seluruh data KPI Teknisi ke format awal (1-20 Oktober 2026)?')) {
+        try {
+          const res = await fetch('/api/kpi/teknisi/reset', { method: 'POST' });
+          const json = await res.json();
+          if (json.ok && json.data) {
+            appState.kpiTeknisi = json.data;
+            renderKpiTeknisiTable();
+            showToast('🔄 Data KPI Teknisi berhasil di-reset ke template awal!');
+          }
+        } catch (err) {
+          showToast('❌ Gagal reset: ' + err.message);
+        }
+      }
+    });
+  }
+
+  fetchKpiTeknisi();
+}
