@@ -1312,12 +1312,12 @@ async function sendWhatsAppMessage(phone, text, config) {
 
   // 3. Simulation / Ready for 1-click WA link if QR not scanned yet
   return {
-    ok: true,
+    ok: false,
     simulated: true,
     channel: 'WA',
     mode: 'SIMULASI_BELUM_SCAN_QR',
     recipient: cleanPhone,
-    reason: 'QR WA belum di-scan'
+    reason: 'Sesi WhatsApp belum terhubung (QR belum di-scan)'
   };
 }
 
@@ -1487,9 +1487,9 @@ async function checkAndRunScheduledReminders(forceAll = false, triggerSource = '
       return { skipped: true, reason: autoPilotStatusText };
     }
     // WhatsApp adalah pengingat utama pelanggan: Auto-pilot menunggu WhatsApp terhubung agar tidak spam email
+    // Jika WhatsApp belum ready, pengiriman tetap diproses agar tercatat status GAGAL di Laporan Pengiriman
     if (!isWaReady) {
-      autoPilotStatusText = 'Standby — Menunggu Anda Scan QR WhatsApp (Begitu terhubung, pesan WA & Email otomatis terkirim)';
-      return { skipped: true, reason: autoPilotStatusText };
+      autoPilotStatusText = 'WhatsApp belum terhubung (QR belum di-scan) - status pengiriman dicatat sebagai Gagal di Laporan';
     }
     if (!inWaWindow) {
       autoPilotStatusText = `Standby Otomatis — Menunggu Jam Pengiriman (${config.waWindowStart} – ${config.waWindowEnd} WITA)`;
@@ -1555,6 +1555,7 @@ app.get('/api/dashboard', async (req, res) => {
   const wita = getWitaParts();
   const customers = await getAllCustomers();
   const logs = loadLogs();
+  if (config.autoSendEnabled) { checkAndRunScheduledReminders(false, 'AUTO_PILOT_DASHBOARD').catch(() => {}); }
   const evaluated = customers.map(c => evaluateCustomerReminders(c, config, wita, logs));
 
   const inOperationalHours = isTimeInRange(
