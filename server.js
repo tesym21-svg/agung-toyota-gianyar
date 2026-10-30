@@ -1428,7 +1428,11 @@ async function executeReminderDispatch(customerId, reminderType, triggerSource =
   // Sesuai instruksi pengguna: Bila ada email atau WA yang tidak terkirim/gagal,
   // TIDAK USAH dikirim ulang secara otomatis. Cukup catat reason dan notifikasinya.
   // Tandai selesai di statusLog agar pengingat hari ini tidak pernah diulang-ulang.
-  const sentTag = `${reminderType}:${wita.dateStr}`;
+  const logSummary = computeLogSummary({ results });
+  let statusPrefix = 'OK';
+  if (logSummary.status === 'FAILED') statusPrefix = 'GAGAL';
+  else if (logSummary.status === 'PARTIAL') statusPrefix = 'PARSIAL';
+  const sentTag = `${statusPrefix}:${reminderType}:${wita.dateStr}`;
   const existingTags = (customer.statusLog || '')
     .split('|')
     .map(s => s.trim())

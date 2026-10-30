@@ -553,9 +553,34 @@ function renderCustomerTable() {
           </div>
         </td>
         <td style="white-space: nowrap;">
-          ${c.statusLog
-            ? `<span class="status-dot-ok" title="${escapeHtml(c.statusLog)}">✓ Terkirim</span>`
-            : '<span style="color:#94a3b8;font-size:11px;">-</span>'}
+          ${(() => {
+            const activeLog = (c.activeReminders || []).map(r => r.lastLog).find(Boolean);
+            if (activeLog) {
+              if (activeLog.status === 'SUCCESS') {
+                return `<span class="status-dot-ok" style="color:#10b981;font-weight:700;" title="Berhasil dikirim pada ${activeLog.time || ''} WITA">🟢 ✓ Terkirim</span>`;
+              } else if (activeLog.status === 'PARTIAL') {
+                return `<span class="status-dot-warn" style="color:#f59e0b;font-weight:700;" title="${escapeHtml(activeLog.reason || 'Terkirim sebagian')}">🟡 ⚠️ Sebagian</span>`;
+              } else if (activeLog.status === 'FAILED') {
+                return `<span class="status-dot-fail" style="color:#ef4444;font-weight:700;" title="${escapeHtml(activeLog.reason || 'Gagal terkirim')}">🔴 ✕ Gagal</span>`;
+              }
+            }
+            if (c.statusLog) {
+              const isGagal = c.statusLog.includes('GAGAL') || c.statusLog.includes('FAIL');
+              const isParsial = c.statusLog.includes('PARSIAL') || c.statusLog.includes('PARTIAL') || c.statusLog.includes('WARN');
+              const isSukses = c.statusLog.includes('OK') || c.statusLog.includes('SUCCESS');
+              if (isGagal) {
+                return `<span class="status-dot-fail" style="color:#ef4444;font-weight:700;" title="${escapeHtml(c.statusLog)}">🔴 ✕ Gagal</span>`;
+              } else if (isParsial) {
+                return `<span class="status-dot-warn" style="color:#f59e0b;font-weight:700;" title="${escapeHtml(c.statusLog)}">🟡 ⚠️ Sebagian</span>`;
+              } else if (isSukses) {
+                return `<span class="status-dot-ok" style="color:#10b981;font-weight:700;" title="${escapeHtml(c.statusLog)}">🟢 ✓ Terkirim</span>`;
+              }
+            }
+            if (c.activeReminders && c.activeReminders.length > 0) {
+              return '<span style="color:#d97706;font-size:11.5px;font-weight:700;">⏳ Belum Dikirim</span>';
+            }
+            return '<span style="color:#94a3b8;font-size:11px;">-</span>';
+          })()}
         </td>
         <td style="text-align: right; white-space: nowrap;">
           <div style="display:inline-flex;gap:4px;">
