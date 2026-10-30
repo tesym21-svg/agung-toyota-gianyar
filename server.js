@@ -32,7 +32,7 @@ const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 const LOGS_PATH = path.join(DATA_DIR, 'logs.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (IS_VERCEL && !fs.existsSync(EXCEL_PATH)) {
+if (IS_VERCEL) {
   const bundledExcel = path.join(BUNDLED_DATA_DIR, 'pelanggan_agung_toyota_gianyar.xlsx');
   if (fs.existsSync(bundledExcel)) {
     try { fs.copyFileSync(bundledExcel, EXCEL_PATH); } catch (_) {}
