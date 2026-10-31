@@ -1186,6 +1186,16 @@ async function initWhatsAppClient() {
     const useMultiFileAuthState = baileys.useMultiFileAuthState;
     const DisconnectReason = baileys.DisconnectReason;
     const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
+    const Browsers = baileys.Browsers;
+
+    // Bersihkan instance socket lama bila ada agar tidak saling tabrakan (putus-nyambung)
+    if (waSocket) {
+      try {
+        waSocket.ev.removeAllListeners();
+        waSocket.end(undefined);
+      } catch (_) {}
+      waSocket = null;
+    }
 
     if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -1201,7 +1211,7 @@ async function initWhatsAppClient() {
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
-      browser: ['Agung Toyota Gianyar CRM (MDP)', 'Chrome', '1.0.0'],
+      browser: Browsers ? Browsers.windows('Desktop') : ['Windows', 'Chrome', '122.0.0.0'],
       syncFullHistory: false,
       markOnlineOnConnect: true,
       // Penting agar retry enkripsi multi-device (saat kirim ke nomor sendiri / beruntun) selalu berhasil
@@ -1209,7 +1219,7 @@ async function initWhatsAppClient() {
         if (key?.id && sentMessagesCache.has(key.id)) {
           return sentMessagesCache.get(key.id);
         }
-        return { conversation: 'Agung Toyota Gianyar Reminder' };
+        return undefined;
       }
     });
 
@@ -1236,7 +1246,16 @@ async function initWhatsAppClient() {
         waState.qrDataUrl = null;
         waState.connectedNumber = null;
         // Jaga sesi dan kredensial WhatsApp tetap utuh di disk, sambungkan ulang otomatis
-        setTimeout(() => initWhatsAppClient(), 4000);
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const isLoggedOut = statusCode === DisconnectReason?.loggedOut;
+        if (isLoggedOut) {
+          try {
+            fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+          } catch (_) {}
+          setTimeout(() => initWhatsAppClient(), 2000);
+        } else {
+          setTimeout(() => initWhatsAppClient(), 5000);
+        }
       }
     });
   } catch (err) {
